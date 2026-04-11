@@ -1,6 +1,5 @@
-import { createContext, useContext, useMemo, useState } from 'react'
-
-const AuthContext = createContext(null)
+import { useMemo, useState } from 'react'
+import { AuthContext } from './auth-context.js'
 
 const storageTokenKey = 'kidsCareerDecoderAuthToken'
 const storageUserKey = 'kidsCareerDecoderAuthUser'
@@ -48,12 +47,4 @@ export function AuthProvider({ children }) {
   return (
     <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
   )
-}
-
-export function useAuth() {
-  const context = useContext(AuthContext)
-  if (!context) {
-    throw new Error('useAuth must be used within AuthProvider')
-  }
-  return context
 }

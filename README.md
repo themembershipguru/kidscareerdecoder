@@ -19,14 +19,24 @@ Full-stack aptitude quiz for kids: React (Vite) front end, Express API, and Post
 4. **Run locally**
 
    ```bash
-   npm run server   # API → http://localhost:3001
-   npm run dev      # App → http://localhost:5173 (proxies /api to the server)
+   npm run build && npm start   # one process: API + static app (uses PORT, default 3001)
+   npm run dev                  # Vite only (proxies /api → localhost:3001; run `npm run server` in another terminal)
    ```
+
+## Hostinger (Node / Git deploy)
+
+In the panel, set:
+
+- **Build command:** `npm run build`
+- **Start command:** `npm start` (not `npm run server` — Hostinger expects `start`)
+- **Environment variables:** `DATABASE_URL` (required), `PORT` if the host does not inject it
+
+Vite and Tailwind are in **dependencies** so `npm run build` still works if the platform skips devDependencies during install.
 
 ## Stack
 
-- React 19, React Router, Tailwind CSS 4  
-- Express, `pg` (direct Postgres), `dotenv`
+- React 19, React Router, Tailwind CSS 4, Vite 8  
+- Express (serves `dist/` + `/api`), `pg`, `dotenv`
 
 ## License
 

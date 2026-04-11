@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -14,14 +15,6 @@ const app = express()
 
 app.use(cors({ origin: true }))
 app.use(express.json())
-
-app.get('/', (_req, res) => {
-  res.json({
-    ok: true,
-    name: 'KidsCareerDecoder API',
-    try: ['/api/health', '/api/quizzes/quiz-aptitude-v1'],
-  })
-})
 
 app.get('/api/health', async (_req, res) => {
   try {
@@ -143,8 +136,31 @@ app.get('/api/careers', async (req, res) => {
   }
 })
 
+const distDir = path.join(__dirname, '..', 'dist')
+const distIndex = path.join(distDir, 'index.html')
+
+if (existsSync(distIndex)) {
+  app.use(express.static(distDir))
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api')) {
+      next()
+      return
+    }
+    res.sendFile(distIndex)
+  })
+} else {
+  app.get('/', (_req, res) => {
+    res.json({
+      ok: true,
+      name: 'KidsCareerDecoder API',
+      message: 'Run npm run build to serve the React app from this server.',
+      try: ['/api/health', '/api/quizzes/quiz-aptitude-v1'],
+    })
+  })
+}
+
 app.listen(port, async () => {
-  console.log(`API http://localhost:${port}`)
+  console.log(`Listening on port ${port}`)
   try {
     const pool = getPool()
     const { rows } = await pool.query(

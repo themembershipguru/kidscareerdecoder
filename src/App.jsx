@@ -1,7 +1,7 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { Header } from './components/Header.jsx'
 import { PrivateRoute } from './components/PrivateRoute.jsx'
-import { AuthProvider, useAuth } from './context/AuthContext.jsx'
+import { AuthProvider, useAuth } from './context'
 import { Login } from './pages/auth/Login.jsx'
 import { Register } from './pages/auth/Register.jsx'
 import { AddChild } from './pages/parent/AddChild.jsx'
