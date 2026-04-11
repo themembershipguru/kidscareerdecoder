@@ -201,9 +201,9 @@ export function Results() {
 
   if (!sessionId) {
     return (
-      <div className="p-8 text-center text-[#1A1A2E]">
+      <div className="p-8 text-center text-slate-900">
         <p>Missing session.</p>
-        <Link to="/child/quiz" className="mt-4 inline-block text-[#00D4FF]">
+        <Link to="/child/quiz" className="mt-4 inline-block font-semibold text-sky-600">
           Back to quizzes
         </Link>
       </div>
@@ -212,7 +212,7 @@ export function Results() {
 
   if (!view && !fetchErr) {
     return (
-      <div className="p-12 text-center font-medium text-[#1A1A2E]/70">
+      <div className="p-12 text-center font-medium text-slate-600">
         Loading your results…
       </div>
     )
@@ -220,9 +220,9 @@ export function Results() {
 
   if (fetchErr && !view) {
     return (
-      <div className="mx-auto max-w-lg p-8 text-center">
+      <div className="mx-auto w-full max-w-xl p-8 text-center">
         <p className="text-rose-600">{fetchErr}</p>
-        <Link to="/child/quiz" className="mt-4 inline-block text-[#00D4FF]">
+        <Link to="/child/quiz" className="mt-4 inline-block font-semibold text-sky-600">
           Back to quizzes
         </Link>
       </div>
@@ -230,7 +230,7 @@ export function Results() {
   }
 
   return (
-    <div className="relative min-h-full overflow-hidden bg-gradient-to-b from-[#e8fbff] via-[#fff7fb] to-[#fff9e6] px-4 py-10 sm:px-6">
+    <div className="relative min-h-full overflow-hidden bg-gradient-to-b from-sky-100 via-rose-50 to-amber-50 px-4 py-10 sm:px-6 lg:px-10">
       <div
         className="pointer-events-none absolute -left-24 top-10 h-56 w-56 rounded-full bg-[#00D4FF]/25 blur-3xl"
         aria-hidden="true"
@@ -240,39 +240,39 @@ export function Results() {
         aria-hidden="true"
       />
 
-      <div className="relative mx-auto max-w-2xl space-y-8">
-        <header className="rounded-[2rem] border-4 border-white/80 bg-white/70 p-8 text-center shadow-xl shadow-[#1A1A2E]/10 backdrop-blur-sm">
-          <p className="text-sm font-bold uppercase tracking-[0.2em] text-[#00D4FF]">
+      <div className="relative mx-auto w-full max-w-5xl space-y-8">
+        <header className="rounded-[2rem] border-4 border-white/90 bg-white/85 p-8 text-center shadow-xl shadow-slate-300/40 backdrop-blur-sm">
+          <p className="text-sm font-bold uppercase tracking-[0.2em] text-sky-600">
             Your sparkle map
           </p>
-          <h1 className="mt-3 text-3xl font-extrabold leading-tight text-[#1A1A2E] sm:text-4xl">
+          <h1 className="mt-3 text-3xl font-extrabold leading-tight text-slate-900 sm:text-4xl">
             {heroHeading}
           </h1>
-          <p className="mt-4 text-lg font-semibold text-[#1A1A2E]/80">
+          <p className="mt-4 text-lg font-semibold text-slate-800">
             {topSpotlightLine}
           </p>
-          <p className="mt-3 text-sm font-medium leading-relaxed text-[#1A1A2E]/65">
+          <p className="mt-3 text-sm font-medium leading-relaxed text-slate-600">
             {runnerTagline}
           </p>
         </header>
 
-        <section className="rounded-[2rem] border-4 border-white/80 bg-white/80 p-4 shadow-lg shadow-[#1A1A2E]/10 backdrop-blur-sm sm:p-6">
-          <h2 className="text-center text-lg font-bold text-[#1A1A2E]">
+        <section className="rounded-[2rem] border-4 border-white/90 bg-white/90 p-4 shadow-lg shadow-slate-300/40 backdrop-blur-sm sm:p-6">
+          <h2 className="text-center text-lg font-bold text-slate-900">
             All six strengths
           </h2>
           <div className="mt-4 h-[280px] w-full">
             <ResponsiveContainer width="100%" height="100%">
               <RadarChart data={radarData}>
-                <PolarGrid stroke="#1A1A2E33" />
+                <PolarGrid stroke="#94a3b866" />
                 <PolarAngleAxis
                   dataKey="dimension"
-                  tick={{ fill: '#1A1A2E', fontSize: 11 }}
+                  tick={{ fill: '#0f172a', fontSize: 11 }}
                 />
                 <Radar
                   name="You"
                   dataKey="value"
-                  stroke="#1A1A2E"
-                  fill="#00D4FF"
+                  stroke="#0f172a"
+                  fill="#0ea5e9"
                   fillOpacity={0.35}
                 />
               </RadarChart>
@@ -280,11 +280,11 @@ export function Results() {
           </div>
         </section>
 
-        <section className="rounded-[2rem] border-4 border-white/80 bg-white/80 p-6 shadow-lg shadow-[#1A1A2E]/10 backdrop-blur-sm">
-          <h2 className="text-center text-lg font-bold text-[#1A1A2E]">
+        <section className="rounded-[2rem] border-4 border-white/90 bg-white/90 p-6 shadow-lg shadow-slate-300/40 backdrop-blur-sm">
+          <h2 className="text-center text-lg font-bold text-slate-900">
             Strength stripes
           </h2>
-          <p className="mt-1 text-center text-sm text-[#1A1A2E]/60">
+          <p className="mt-1 text-center text-sm text-slate-600">
             Taller bars show higher scores from your answers.
           </p>
           <ul className="mt-6 space-y-4">
@@ -294,11 +294,11 @@ export function Results() {
               const barClass = barColorsByType[key]
               return (
                 <li key={key} className="space-y-1">
-                  <div className="flex items-center justify-between text-sm font-semibold text-[#1A1A2E]">
+                  <div className="flex items-center justify-between text-sm font-semibold text-slate-900">
                     <span>{friendlyTypeLabels[key]}</span>
                     <span>{val}%</span>
                   </div>
-                  <div className="h-4 w-full overflow-hidden rounded-full bg-[#1A1A2E]/10">
+                  <div className="h-4 w-full overflow-hidden rounded-full bg-slate-200">
                     <div
                       className={`h-full rounded-full ${barClass} transition-all duration-500`}
                       style={{ width: `${widthPercent}%` }}
@@ -310,18 +310,18 @@ export function Results() {
           </ul>
         </section>
 
-        <section className="rounded-[2rem] border-4 border-dashed border-[#00D4FF]/45 bg-white/75 p-6 shadow-inner shadow-[#00D4FF]/10">
-          <h2 className="text-center text-lg font-bold text-[#1A1A2E]">
+        <section className="rounded-[2rem] border-4 border-dashed border-sky-300/80 bg-white/85 p-6 shadow-inner shadow-sky-200/50">
+          <h2 className="text-center text-lg font-bold text-slate-900">
             Three careers to dream about
           </h2>
-          <p className="mt-1 text-center text-sm text-[#1A1A2E]/60">
+          <p className="mt-1 text-center text-sm text-slate-600">
             A fun starter list — not a final answer.
           </p>
           <ul className="mt-5 grid gap-3 sm:grid-cols-3">
             {topCareers.slice(0, 3).map((career, i) => (
               <li
                 key={career}
-                className="rounded-2xl bg-gradient-to-br from-[#00D4FF]/15 to-fuchsia-200/40 px-4 py-4 text-center text-sm font-bold text-[#1A1A2E] shadow-sm"
+                className="rounded-2xl bg-gradient-to-br from-sky-100 to-fuchsia-100 px-4 py-4 text-center text-sm font-bold text-slate-900 shadow-sm"
               >
                 <span className="mr-1 text-2xl" aria-hidden="true">
                   {careerEmojis[i % careerEmojis.length]}
@@ -342,7 +342,7 @@ export function Results() {
           </button>
           <Link
             to="/child/quiz"
-            className="rounded-full border-2 border-[#1A1A2E]/20 bg-white px-8 py-4 text-base font-bold text-[#1A1A2E] shadow transition hover:border-[#00D4FF]/50"
+            className="rounded-full border-2 border-slate-300 bg-white px-8 py-4 text-base font-bold text-slate-900 shadow transition hover:border-sky-400"
           >
             Try another quiz
           </Link>

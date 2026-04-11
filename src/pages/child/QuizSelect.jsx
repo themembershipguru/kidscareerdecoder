@@ -53,14 +53,14 @@ export function QuizSelect() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
-      <h1 className="text-3xl font-extrabold text-[#1A1A2E]">Pick a quiz</h1>
-      <p className="mt-2 text-[#1A1A2E]/70">
+    <div className="mx-auto w-full max-w-7xl px-4 py-10 sm:px-6 lg:px-10">
+      <h1 className="text-3xl font-extrabold text-slate-900">Pick a quiz</h1>
+      <p className="mt-2 text-slate-700">
         Choose a fun scenario quiz. There are no wrong answers.
       </p>
 
       {loadState === 'loading' && (
-        <p className="mt-8 text-center font-medium text-[#1A1A2E]/65">Loading…</p>
+        <p className="mt-8 text-center font-medium text-slate-600">Loading…</p>
       )}
 
       {loadState === 'error' && (
@@ -74,7 +74,7 @@ export function QuizSelect() {
       )}
 
       {loadState === 'ready' && quizzes.length === 0 && (
-        <p className="mt-8 rounded-2xl border border-dashed border-[#1A1A2E]/20 bg-white p-8 text-center text-[#1A1A2E]/70">
+        <p className="mt-8 rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center text-slate-600">
           No published quizzes yet. Ask a grown-up to publish one in the
           database.
         </p>
@@ -87,15 +87,15 @@ export function QuizSelect() {
               <button
                 type="button"
                 onClick={() => void startQuiz(q)}
-                className="w-full rounded-3xl border border-[#1A1A2E]/10 bg-white p-6 text-left shadow-lg shadow-[#1A1A2E]/5 transition hover:border-[#00D4FF]/40 hover:shadow-xl"
+                className="w-full rounded-3xl border border-slate-200 bg-white p-6 text-left shadow-lg shadow-slate-200/60 transition hover:border-sky-400/50 hover:shadow-xl"
               >
-                <h2 className="text-xl font-bold text-[#1A1A2E]">{q.title}</h2>
+                <h2 className="text-xl font-bold text-slate-900">{q.title}</h2>
                 {q.description && (
-                  <p className="mt-2 text-sm leading-relaxed text-[#1A1A2E]/70">
+                  <p className="mt-2 text-sm leading-relaxed text-slate-600">
                     {q.description}
                   </p>
                 )}
-                <p className="mt-4 text-sm font-semibold text-[#00D4FF]">
+                <p className="mt-4 text-sm font-semibold text-sky-600">
                   About {estMinutes(q)} min · tap to start
                 </p>
               </button>

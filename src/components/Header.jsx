@@ -36,7 +36,7 @@ export function Header() {
         isChild ? 'py-3.5' : 'py-3'
       }`}
     >
-      <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 sm:flex-nowrap sm:gap-4 sm:px-6 lg:px-8">
+      <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-3 px-4 sm:flex-nowrap sm:gap-4 sm:px-6 lg:px-10">
         <div className="flex w-full items-center justify-between sm:w-auto sm:justify-start">
           <Link
             to={logoTo}

@@ -212,9 +212,9 @@ export function TakeQuiz() {
 
   if (loadState === 'loading' || loadState === 'error') {
     return (
-      <div className="mx-auto flex max-w-2xl flex-col gap-6 px-4 py-12 sm:px-6 lg:px-8">
+      <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-4 py-12 sm:px-6 lg:px-8">
         {loadState === 'loading' && (
-          <p className="text-center text-base font-medium text-[#1A1A2E]/70">
+          <p className="text-center text-base font-medium text-slate-600">
             Loading your quiz…
           </p>
         )}
@@ -246,45 +246,45 @@ export function TakeQuiz() {
   const urgent = secondsLeft <= 10
 
   return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">
+    <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">
       {quizTitle && (
-        <p className="text-center text-sm font-semibold text-[#1A1A2E]/60">
+        <p className="text-center text-sm font-semibold text-slate-600">
           {quizTitle}
         </p>
       )}
       <div className="space-y-2">
-        <div className="flex items-center justify-between text-sm font-medium text-[#1A1A2E]/80">
+        <div className="flex items-center justify-between text-sm font-medium text-slate-700">
           <span>
             Question {currentIndex + 1} of {totalQuestions}
           </span>
           <span
-            className={`tabular-nums ${urgent ? 'animate-pulse font-bold text-rose-600' : 'text-[#00D4FF]'}`}
+            className={`tabular-nums ${urgent ? 'animate-pulse font-bold text-rose-600' : 'text-sky-600'}`}
           >
             {secondsLeft}s
           </span>
         </div>
-        <div className="h-3 w-full overflow-hidden rounded-full bg-[#1A1A2E]/10">
+        <div className="h-3 w-full overflow-hidden rounded-full bg-slate-200">
           <div
-            className="h-full rounded-full bg-[#00D4FF] transition-[width] duration-500 ease-out"
+            className="h-full rounded-full bg-sky-500 transition-[width] duration-500 ease-out"
             style={{ width: `${questionProgressPercent}%` }}
           />
         </div>
-        <div className="h-2 w-full overflow-hidden rounded-full bg-[#1A1A2E]/5">
+        <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
           <div
-            className={`h-full rounded-full transition-[width] duration-1000 ease-linear ${urgent ? 'bg-rose-500' : 'bg-[#1A1A2E]/40'}`}
+            className={`h-full rounded-full transition-[width] duration-1000 ease-linear ${urgent ? 'bg-rose-500' : 'bg-slate-400'}`}
             style={{ width: `${timerPercent}%` }}
           />
         </div>
       </div>
 
       {encouragement && (
-        <p className="rounded-2xl border border-[#00D4FF]/30 bg-[#00D4FF]/10 px-4 py-3 text-center text-base font-semibold text-[#1A1A2E]">
+        <p className="rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-center text-base font-semibold text-slate-900">
           {encouragement}
         </p>
       )}
 
-      <div className="rounded-3xl border border-[#1A1A2E]/10 bg-white p-6 shadow-lg shadow-[#1A1A2E]/5">
-        <h1 className="text-xl font-bold leading-snug text-[#1A1A2E] sm:text-2xl">
+      <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-lg shadow-slate-200/60">
+        <h1 className="text-xl font-bold leading-snug text-slate-900 sm:text-2xl">
           {currentQuestion?.body}
         </h1>
         <ul className="mt-6 flex flex-col gap-3">
@@ -294,7 +294,7 @@ export function TakeQuiz() {
                 type="button"
                 onClick={() => handlePick(option)}
                 disabled={optionsLocked}
-                className="w-full rounded-2xl border-2 border-[#1A1A2E]/10 bg-slate-50 px-4 py-4 text-left text-base font-medium text-[#1A1A2E] transition hover:border-[#00D4FF]/60 hover:bg-[#00D4FF]/5 disabled:cursor-not-allowed disabled:opacity-60"
+                className="w-full rounded-2xl border-2 border-slate-200 bg-slate-50 px-4 py-4 text-left text-base font-medium text-slate-900 transition hover:border-sky-400 hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {option.label}
               </button>
