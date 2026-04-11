@@ -28,7 +28,8 @@ Full-stack aptitude quiz for kids: React (Vite) front end, Express API, and Post
 In the panel, set:
 
 - **Build command:** `npm run build`
-- **Start command:** `npm start` (not `npm run server` — Hostinger expects `start`)
+- **Start command:** `npm start` (runs root `server.js`, which loads `server/index.js`)
+- **Entry file:** If the panel asks for an entry point, use **`server.js`** (repo root) or leave default if it reads `package.json` → `"main": "server.js"`.
 - **Environment variables:** `DATABASE_URL` (required), `PORT` if the host does not inject it
 
 Vite and Tailwind are in **dependencies** so `npm run build` still works if the platform skips devDependencies during install.
