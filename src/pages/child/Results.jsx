@@ -1,15 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
-import { apiFetch } from '../../lib/api.js'
-
-const aptitudeOrder = [
-  'logical',
-  'creative',
-  'verbal',
-  'social',
-  'scientific',
-  'practical',
-]
+import { useAuth } from '../../context'
+import { apiFetch, apiPost } from '../../lib/api.js'
+import { aptitudeOrder, buildScoresFromAnswers, rankAptitudes } from '../../lib/quizScoring.js'
 
 const friendlyTypeLabels = {
   logical: 'Logical',
@@ -56,26 +49,10 @@ const sampleCareersByTopAptitude = {
   practical: ['Carpenter', 'Bike Mechanic', 'Chef'],
 }
 
-function buildScoresFromAnswers(quizAnswers) {
-  const scores = Object.fromEntries(aptitudeOrder.map((k) => [k, 0]))
-  for (const answer of quizAnswers) {
-    const t = answer?.aptitudeType
-    if (t && Object.prototype.hasOwnProperty.call(scores, t)) {
-      scores[t] += 1
-    }
-  }
-  return scores
-}
-
-function rankAptitudes(scores) {
-  return [...aptitudeOrder].sort((a, b) => {
-    if (scores[b] !== scores[a]) return scores[b] - scores[a]
-    return aptitudeOrder.indexOf(a) - aptitudeOrder.indexOf(b)
-  })
-}
-
 export function Results() {
+  const { user } = useAuth()
   const location = useLocation()
+  const saveSentRef = useRef(false)
   const quizAnswers = useMemo(
     () => location.state?.quizAnswers ?? [],
     [location.state?.quizAnswers],
@@ -151,6 +128,50 @@ export function Results() {
       sampleCareersByTopAptitude[topType] ?? sampleCareersByTopAptitude.creative
     )
   }, [hasQuizSignals, topType, careerData])
+
+  const quizIdForSave = location.state?.quizId ?? 'quiz-aptitude-v1'
+  const answersKey = JSON.stringify(quizAnswers)
+
+  useEffect(() => {
+    if (!hasQuizSignals || user?.role !== 'child' || !user?.id) return
+    if (!quizAnswers.length) return
+
+    const fingerprint = `${user.id}|${quizIdForSave}|${answersKey}`
+    const key = 'kcd-saved-quiz'
+    try {
+      if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem(key) === fingerprint) {
+        return
+      }
+    } catch {
+      /* ignore */
+    }
+
+    if (saveSentRef.current) return
+    saveSentRef.current = true
+
+    const scores = buildScoresFromAnswers(quizAnswers)
+    const ranked = rankAptitudes(scores)
+    const topAptitude = ranked[0] ?? null
+    ;(async () => {
+      try {
+        await apiPost('/api/quiz-sessions/complete', {
+          userId: user.id,
+          quizId: quizIdForSave,
+          answers: quizAnswers,
+          scores,
+          topAptitude,
+        })
+        try {
+          sessionStorage.setItem(key, fingerprint)
+        } catch {
+          /* ignore */
+        }
+      } catch {
+        saveSentRef.current = false
+      }
+    })()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- answersKey tracks quizAnswers
+  }, [hasQuizSignals, user?.id, user?.role, quizIdForSave, answersKey])
 
   const handleShareWithParent = () => {}
 

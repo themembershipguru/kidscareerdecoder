@@ -67,7 +67,7 @@ export function TakeQuiz() {
       if (isLast) {
         navigate('/child/results', {
           replace: true,
-          state: { quizAnswers: next },
+          state: { quizAnswers: next, quizId: DEFAULT_QUIZ_ID },
         })
         return
       }

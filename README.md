@@ -10,13 +10,18 @@ Full-stack aptitude quiz for kids: React (Vite) front end, Express API, and Post
    npm install
    ```
 
-2. **Supabase** — In the Supabase SQL editor, run `supabase/migrations/20250404000000_initial_schema.sql`.
+2. **Supabase** — In the SQL editor, run migrations in order:
+
+   - `supabase/migrations/20250404000000_initial_schema.sql`
+   - `supabase/migrations/20250411120000_users_birth_year.sql` (child birth year on the parent dashboard)
 
 3. **Environment** — Copy `.env.example` to `.env` at the project root and set:
 
    - `DATABASE_URL` — Postgres URI from Supabase **Project Settings → Database → Connection string** (URI tab). Uses the **database password**, not the REST API keys.
 
-4. **Run locally**
+4. **Usage** — Register a parent → **Add child** (copy the child’s sign-in email) → sign in as that child → complete the quiz → parent dashboard shows **live** sessions from the database.
+
+5. **Run locally**
 
    ```bash
    npm run build && npm start   # one process: API + static app (uses PORT, default 3001)

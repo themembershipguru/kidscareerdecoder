@@ -22,3 +22,19 @@ export async function apiFetch(path, init = {}) {
   }
   return res.json()
 }
+
+export async function apiPost(path, body) {
+  const res = await fetch(apiUrl(path), {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(text || `${res.status} ${res.statusText}`)
+  }
+  return res.json()
+}

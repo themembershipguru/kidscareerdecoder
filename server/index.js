@@ -6,6 +6,7 @@ import dotenv from 'dotenv'
 import cors from 'cors'
 import express from 'express'
 import { getPool } from './lib/db.js'
+import { registerParentApi } from './parentApi.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 dotenv.config({ path: path.join(__dirname, '..', '.env') })
@@ -15,6 +16,8 @@ const app = express()
 
 app.use(cors({ origin: true }))
 app.use(express.json())
+
+registerParentApi(app)
 
 app.get('/api/health', async (_req, res) => {
   try {

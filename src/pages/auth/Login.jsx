@@ -1,38 +1,7 @@
 import { useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context'
-
-function titleCaseChunk(chunk) {
-  if (!chunk) return ''
-  return chunk.charAt(0).toUpperCase() + chunk.slice(1).toLowerCase()
-}
-
-function prettyNameFromLocalPart(local) {
-  const raw = local.replace(/[^a-z0-9]+/gi, ' ').trim()
-  if (!raw) return 'Explorer'
-  return raw.split(/\s+/).map(titleCaseChunk).join(' ')
-}
-
-function demoUserFromEmail(email) {
-  const trimmed = email.trim().toLowerCase()
-  const local = trimmed.split('@')[0] || 'explorer'
-  const isChild = local.includes('child')
-  const baseName = prettyNameFromLocalPart(local)
-  if (isChild) {
-    return {
-      id: `demo-child-${local}`,
-      name: baseName,
-      role: 'child',
-      parentId: 'demo-parent-root',
-    }
-  }
-  return {
-    id: `demo-parent-${local}`,
-    name: baseName,
-    role: 'parent',
-    parentId: null,
-  }
-}
+import { apiFetch } from '../../lib/api.js'
 
 function makeMockToken() {
   return `mock.${globalThis.crypto?.randomUUID?.() ?? Date.now()}`
@@ -45,6 +14,7 @@ export function Login() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [formError, setFormError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
 
   if (user && token) {
     return (
@@ -55,7 +25,7 @@ export function Login() {
     )
   }
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault()
     setFormError('')
     if (!email.trim()) {
@@ -66,21 +36,40 @@ export function Login() {
       setFormError('Please enter your password.')
       return
     }
-    const nextUser = demoUserFromEmail(email)
-    login(nextUser, makeMockToken())
-    const fromPath = location.state?.from?.pathname
-    if (
-      fromPath &&
-      fromPath !== '/login' &&
-      fromPath !== '/register'
-    ) {
-      navigate(fromPath, { replace: true })
-      return
+    setSubmitting(true)
+    try {
+      const row = await apiFetch(
+        `/api/users/by-email?email=${encodeURIComponent(email.trim())}`,
+      )
+      login(
+        {
+          id: row.id,
+          name: row.fullName,
+          role: row.role,
+          parentId: row.parentUserId ?? null,
+        },
+        makeMockToken(),
+      )
+      const fromPath = location.state?.from?.pathname
+      if (
+        fromPath &&
+        fromPath !== '/login' &&
+        fromPath !== '/register'
+      ) {
+        navigate(fromPath, { replace: true })
+        return
+      }
+      navigate(
+        row.role === 'child' ? '/child/quiz' : '/parent/dashboard',
+        { replace: true },
+      )
+    } catch {
+      setFormError(
+        'No account found for that email. Register as a parent, or use the child sign-in email shown on the parent dashboard after adding a child.',
+      )
+    } finally {
+      setSubmitting(false)
     }
-    navigate(
-      nextUser.role === 'child' ? '/child/quiz' : '/parent/dashboard',
-      { replace: true },
-    )
   }
 
   return (
@@ -90,9 +79,9 @@ export function Login() {
           Sign in
         </h1>
         <p className="mt-2 text-sm leading-relaxed text-[#1A1A2E]/65">
-          Welcome back. Demo mode builds your role from email: include{' '}
-          <span className="font-semibold text-[#1A1A2E]">child</span> before the{' '}
-          @ to sign in as a child (any password for now).
+          Sign in with the email you used to register, or the unique child
+          sign-in email from your parent dashboard. Password is not verified
+          yet—use any value until secure login is enabled.
         </p>
 
         <form onSubmit={handleSubmit} className="mt-8 space-y-5">
@@ -141,9 +130,10 @@ export function Login() {
 
           <button
             type="submit"
-            className="w-full rounded-lg bg-[#1A1A2E] py-3 text-sm font-bold text-[#00D4FF] transition hover:bg-[#252542]"
+            disabled={submitting}
+            className="w-full rounded-lg bg-[#1A1A2E] py-3 text-sm font-bold text-[#00D4FF] transition hover:bg-[#252542] disabled:opacity-60"
           >
-            Continue
+            {submitting ? 'Signing in…' : 'Continue'}
           </button>
         </form>
 

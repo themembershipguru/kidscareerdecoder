@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context'
+import { apiPost } from '../../lib/api.js'
+import { stableParentId } from '../../lib/userIds.js'
 
 function makeMockToken() {
   return `mock.${globalThis.crypto?.randomUUID?.() ?? Date.now()}`
@@ -14,12 +16,13 @@ export function Register() {
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [formError, setFormError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
 
   if (user && token) {
     return <Navigate to="/parent/dashboard" replace />
   }
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault()
     setFormError('')
     if (!fullName.trim()) {
@@ -38,17 +41,35 @@ export function Register() {
       setFormError('Passwords do not match.')
       return
     }
-    const local = email.trim().toLowerCase().split('@')[0] || 'parent'
-    login(
-      {
-        id: `demo-parent-${local}-${Date.now()}`,
-        name: fullName.trim(),
+    setSubmitting(true)
+    try {
+      const id = await stableParentId(email)
+      await apiPost('/api/users/sync', {
+        id,
+        email: email.trim(),
+        fullName: fullName.trim(),
         role: 'parent',
-        parentId: null,
-      },
-      makeMockToken(),
-    )
-    navigate('/parent/dashboard', { replace: true })
+        parentUserId: null,
+      })
+      login(
+        {
+          id,
+          name: fullName.trim(),
+          role: 'parent',
+          parentId: null,
+        },
+        makeMockToken(),
+      )
+      navigate('/parent/dashboard', { replace: true })
+    } catch (err) {
+      setFormError(
+        err instanceof Error
+          ? err.message
+          : 'Could not reach the server. Check your connection and try again.',
+      )
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -58,8 +79,8 @@ export function Register() {
           Create account
         </h1>
         <p className="mt-2 text-sm leading-relaxed text-[#1A1A2E]/65">
-          Parents sign up here to add children and review progress. This form
-          uses demo authentication until your API is connected.
+          Parents sign up here to add children and review quiz progress stored in
+          your database.
         </p>
 
         <form onSubmit={handleSubmit} className="mt-8 space-y-5">
@@ -144,9 +165,10 @@ export function Register() {
 
           <button
             type="submit"
-            className="w-full rounded-lg bg-[#1A1A2E] py-3 text-sm font-bold text-[#00D4FF] transition hover:bg-[#252542]"
+            disabled={submitting}
+            className="w-full rounded-lg bg-[#1A1A2E] py-3 text-sm font-bold text-[#00D4FF] transition hover:bg-[#252542] disabled:opacity-60"
           >
-            Create account
+            {submitting ? 'Saving…' : 'Create account'}
           </button>
         </form>
 
