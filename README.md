@@ -10,10 +10,19 @@ Full-stack aptitude quiz for kids: React (Vite) front end, Express API, and Post
    npm install
    ```
 
-2. **Supabase** — In the SQL editor, run migrations in order:
+2. **Supabase** — In **SQL → New query**, run migrations **in order** (skip any that already ran):
 
    - `supabase/migrations/20250404000000_initial_schema.sql`
-   - `supabase/migrations/20250411120000_users_birth_year.sql` (child birth year on the parent dashboard)
+   - `supabase/migrations/20250411120000_users_birth_year.sql`
+   - `supabase/migrations/20250420120000_users_date_of_birth.sql` — **required** for “Add child” and age; without it you get `column "date_of_birth" does not exist`
+   - `supabase/migrations/20260204120000_analytics_session_index.sql` (optional, performance)
+
+   **Quick fix** if only `date_of_birth` is missing — paste and run:
+
+   ```sql
+   ALTER TABLE public.users
+     ADD COLUMN IF NOT EXISTS date_of_birth date;
+   ```
 
 3. **Environment** — Copy `.env.example` to `.env` at the project root and set:
 
@@ -40,7 +49,7 @@ In the panel, set:
 - **Build command:** `npm run build`
 - **Start command:** `npm start` (runs root `server.js`, which loads `server/index.js`)
 - **Entry file:** If the panel asks for an entry point, use **`server.js`** (repo root) or leave default if it reads `package.json` → `"main": "server.js"`.
-- **Environment variables:** `DATABASE_URL` (required), `PORT` if the host does not inject it
+- **Environment variables:** `DATABASE_URL`, `JWT_SECRET` (required for login), `PORT` if the host does not inject it
 
 Vite and Tailwind are in **dependencies** so `npm run build` still works if the platform skips devDependencies during install.
 
