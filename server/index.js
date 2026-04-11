@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 import dotenv from 'dotenv'
 import cors from 'cors'
 import express from 'express'
-import { getSupabase } from './lib/supabase.js'
+import { getPool } from './lib/db.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 dotenv.config({ path: path.join(__dirname, '..', '.env') })
@@ -25,12 +25,11 @@ app.get('/', (_req, res) => {
 
 app.get('/api/health', async (_req, res) => {
   try {
-    const supabase = getSupabase()
-    const { count, error } = await supabase
-      .from('quizzes')
-      .select('*', { count: 'exact', head: true })
-    if (error) throw error
-    res.json({ ok: true, quizzes: count ?? 0 })
+    const pool = getPool()
+    const { rows } = await pool.query(
+      'SELECT COUNT(*)::int AS n FROM public.quizzes',
+    )
+    res.json({ ok: true, quizzes: rows[0]?.n ?? 0 })
   } catch (err) {
     res.status(500).json({
       ok: false,
@@ -41,43 +40,43 @@ app.get('/api/health', async (_req, res) => {
 
 app.get('/api/quizzes/:id', async (req, res) => {
   try {
-    const supabase = getSupabase()
+    const pool = getPool()
     const id = req.params.id
 
-    const { data: quiz, error: quizError } = await supabase
-      .from('quizzes')
-      .select('id, slug, title, description, time_per_question_seconds')
-      .eq('id', id)
-      .maybeSingle()
-
-    if (quizError) throw quizError
+    const quizResult = await pool.query(
+      `SELECT id, slug, title, description, time_per_question_seconds
+       FROM public.quizzes WHERE id = $1`,
+      [id],
+    )
+    const quiz = quizResult.rows[0]
     if (!quiz) {
       res.status(404).json({
         error: 'Quiz not found',
         hint:
-          'Confirm the migration ran in Supabase (quiz id quiz-aptitude-v1). Use SUPABASE_SERVICE_ROLE_KEY in .env (not the anon key), or RLS will hide rows.',
+          'Run supabase/migrations/20250404000000_initial_schema.sql in Supabase. Check quiz id quiz-aptitude-v1 exists.',
       })
       return
     }
 
-    const { data: questions, error: qError } = await supabase
-      .from('questions')
-      .select('id, body, order_index')
-      .eq('quiz_id', id)
-      .order('order_index', { ascending: true })
+    const qResult = await pool.query(
+      `SELECT id, body, order_index
+       FROM public.questions WHERE quiz_id = $1
+       ORDER BY order_index ASC`,
+      [id],
+    )
+    const questions = qResult.rows
+    const qids = questions.map((q) => q.id)
 
-    if (qError) throw qError
-
-    const qids = (questions ?? []).map((q) => q.id)
     let options = []
     if (qids.length > 0) {
-      const { data: opts, error: oError } = await supabase
-        .from('question_options')
-        .select('id, question_id, label, aptitude_type, order_index')
-        .in('question_id', qids)
-        .order('order_index', { ascending: true })
-      if (oError) throw oError
-      options = opts ?? []
+      const oResult = await pool.query(
+        `SELECT id, question_id, label, aptitude_type, order_index
+         FROM public.question_options
+         WHERE question_id = ANY($1::text[])
+         ORDER BY question_id, order_index ASC`,
+        [qids],
+      )
+      options = oResult.rows
     }
 
     const byQuestion = new Map()
@@ -93,7 +92,7 @@ app.get('/api/quizzes/:id', async (req, res) => {
       title: quiz.title,
       description: quiz.description,
       timePerQuestionSeconds: quiz.time_per_question_seconds,
-      questions: (questions ?? []).map((q) => ({
+      questions: questions.map((q) => ({
         id: q.id,
         text: q.body,
         options: (byQuestion.get(q.id) ?? []).map((o) => ({
@@ -113,22 +112,26 @@ app.get('/api/quizzes/:id', async (req, res) => {
 
 app.get('/api/careers', async (req, res) => {
   try {
-    const supabase = getSupabase()
+    const pool = getPool()
     const aptitude =
       typeof req.query.aptitude === 'string' ? req.query.aptitude : null
 
-    const base = supabase.from('careers').select('title, aptitude_type, sort_order')
-    const { data: rows, error } = aptitude
-      ? await base
-          .eq('aptitude_type', aptitude)
-          .order('sort_order', { ascending: true })
-      : await base
-          .order('aptitude_type', { ascending: true })
-          .order('sort_order', { ascending: true })
-    if (error) throw error
+    const { rows } = aptitude
+      ? await pool.query(
+          `SELECT title, aptitude_type, sort_order
+           FROM public.careers
+           WHERE aptitude_type = $1
+           ORDER BY sort_order ASC`,
+          [aptitude],
+        )
+      : await pool.query(
+          `SELECT title, aptitude_type, sort_order
+           FROM public.careers
+           ORDER BY aptitude_type ASC, sort_order ASC`,
+        )
 
     res.json(
-      (rows ?? []).map((r) => ({
+      rows.map((r) => ({
         title: r.title,
         aptitudeType: r.aptitude_type,
       })),
@@ -143,24 +146,24 @@ app.get('/api/careers', async (req, res) => {
 app.listen(port, async () => {
   console.log(`API http://localhost:${port}`)
   try {
-    const supabase = getSupabase()
-    const { count, error } = await supabase
-      .from('quizzes')
-      .select('*', { count: 'exact', head: true })
-    if (error) throw error
-    console.log(`Supabase OK — quizzes in DB: ${count ?? 0}`)
-    if ((count ?? 0) === 0) {
+    const pool = getPool()
+    const { rows } = await pool.query(
+      'SELECT COUNT(*)::int AS n FROM public.quizzes',
+    )
+    const n = rows[0]?.n ?? 0
+    console.log(`Database OK — quizzes: ${n}`)
+    if (n === 0) {
       console.warn(
         'No quizzes found. Run supabase/migrations/20250404000000_initial_schema.sql in the Supabase SQL editor.',
       )
     }
   } catch (err) {
     console.error(
-      'Supabase check failed:',
+      'Database check failed:',
       err instanceof Error ? err.message : err,
     )
     console.error(
-      'Fix .env at project root: SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY (service_role, not anon).',
+      'Set DATABASE_URL in .env (Supabase → Project Settings → Database → Connection string → URI).',
     )
   }
 })

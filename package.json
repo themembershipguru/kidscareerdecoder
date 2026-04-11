@@ -12,8 +12,8 @@
     "server:dev": "node --watch server/index.js"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.103.0",
     "axios": "^1.13.6",
+    "pg": "^8.14.1",
     "cors": "^2.8.5",
     "dotenv": "^17.4.1",
     "express": "^4.21.2",

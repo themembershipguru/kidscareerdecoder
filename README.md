@@ -14,8 +14,7 @@ Full-stack aptitude quiz for kids: React (Vite) front end, Express API, and Post
 
 3. **Environment** — Copy `.env.example` to `.env` at the project root and set:
 
-   - `SUPABASE_URL`
-   - `SUPABASE_SERVICE_ROLE_KEY` (service role, server only)
+   - `DATABASE_URL` — Postgres URI from Supabase **Project Settings → Database → Connection string** (URI tab). Uses the **database password**, not the REST API keys.
 
 4. **Run locally**
 
@@ -27,7 +26,7 @@ Full-stack aptitude quiz for kids: React (Vite) front end, Express API, and Post
 ## Stack
 
 - React 19, React Router, Tailwind CSS 4  
-- Express, `@supabase/supabase-js`, `dotenv`
+- Express, `pg` (direct Postgres), `dotenv`
 
 ## License
 
