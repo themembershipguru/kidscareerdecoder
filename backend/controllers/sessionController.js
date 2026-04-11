@@ -1,6 +1,11 @@
 import { v4 as uuidv4 } from 'uuid'
 import { getPool } from '../db/pool.js'
 import { getAptitudeProfile } from '../services/aiProfiler.js'
+import {
+  adjustAbility,
+  normalizeQuizDefault,
+  pickNextQuestionId,
+} from '../services/adaptiveDifficulty.js'
 
 const aptitudeTypes = [
   'logical',
@@ -68,6 +73,94 @@ async function assertSessionReadable(session, reqUser) {
   return false
 }
 
+function parseSessionMetadata(raw) {
+  if (raw == null) return {}
+  if (typeof raw === 'string') {
+    try {
+      const o = JSON.parse(raw)
+      return typeof o === 'object' && o && !Array.isArray(o) ? o : {}
+    } catch {
+      return {}
+    }
+  }
+  if (typeof raw === 'object' && !Array.isArray(raw)) return { ...raw }
+  return {}
+}
+
+async function loadQuestionPayload(pool, questionId) {
+  const qRes = await pool.query(
+    `SELECT id, quiz_id, body, order_index, difficulty_level, aptitude_tag, created_at
+     FROM public.questions WHERE id = $1 LIMIT 1`,
+    [questionId],
+  )
+  const q = qRes.rows[0]
+  if (!q) return null
+  const oRes = await pool.query(
+    `SELECT id, question_id, label, aptitude_type, order_index, is_correct, created_at
+     FROM public.question_options
+     WHERE question_id = $1
+     ORDER BY order_index ASC`,
+    [questionId],
+  )
+  return {
+    id: q.id,
+    quiz_id: q.quiz_id,
+    body: q.body,
+    order_index: q.order_index,
+    difficulty_level: q.difficulty_level,
+    aptitude_tag: q.aptitude_tag,
+    created_at: q.created_at,
+    options: oRes.rows.map((o) => ({
+      id: o.id,
+      question_id: o.question_id,
+      label: o.label,
+      aptitude_type: o.aptitude_type,
+      order_index: o.order_index,
+      is_correct: o.is_correct,
+      created_at: o.created_at,
+    })),
+  }
+}
+
+async function persistAdaptiveMetadata(pool, sessionId, baseMeta, adaptivePatch) {
+  const meta = parseSessionMetadata(baseMeta)
+  const next = {
+    ...meta,
+    adaptive: {
+      ...(meta.adaptive && typeof meta.adaptive === 'object' ? meta.adaptive : {}),
+      ...adaptivePatch,
+    },
+  }
+  await pool.query(
+    `UPDATE public.quiz_sessions SET metadata_json = $1::jsonb WHERE id = $2`,
+    [JSON.stringify(next), sessionId],
+  )
+  return next
+}
+
+async function loadAdaptiveContext(pool, quizId, sessionId) {
+  const qList = await pool.query(
+    `SELECT id, order_index, difficulty_level FROM public.questions WHERE quiz_id = $1 ORDER BY order_index ASC`,
+    [quizId],
+  )
+  const aRes = await pool.query(
+    `SELECT question_id FROM public.quiz_answers WHERE session_id = $1`,
+    [sessionId],
+  )
+  const answeredSet = new Set(aRes.rows.map((r) => r.question_id))
+  const questionsById = new Map(qList.rows.map((r) => [r.id, r]))
+  const allIds = qList.rows.map((r) => r.id)
+  const remainingIds = allIds.filter((id) => !answeredSet.has(id))
+  return {
+    allIds,
+    answeredSet,
+    remainingIds,
+    questionsById,
+    totalQuestions: allIds.length,
+    answeredCount: answeredSet.size,
+  }
+}
+
 export async function startSession(req, res) {
   try {
     const { quiz_id: quizId, user_id: userId } = req.body
@@ -122,6 +215,95 @@ export async function startSession(req, res) {
   }
 }
 
+export async function getCurrentQuestion(req, res) {
+  try {
+    const sessionId = String(req.params.sessionId || '')
+    const slug = String(req.query.slug || '').trim()
+    if (!slug) {
+      res.status(400).json({ error: 'slug query parameter is required' })
+      return
+    }
+    const pool = getPool()
+    const sRes = await pool.query(
+      `SELECT qs.id, qs.user_id, qs.quiz_id, qs.status, qs.metadata_json,
+              q.title, q.time_per_question_seconds, q.default_difficulty
+       FROM public.quiz_sessions qs
+       JOIN public.quizzes q ON q.id = qs.quiz_id
+       WHERE qs.id = $1 AND q.slug = $2
+       LIMIT 1`,
+      [sessionId, slug],
+    )
+    const row = sRes.rows[0]
+    if (!row) {
+      res.status(404).json({ error: 'Session not found' })
+      return
+    }
+    const session = {
+      id: row.id,
+      user_id: row.user_id,
+      quiz_id: row.quiz_id,
+      status: row.status,
+    }
+    const readable = await assertSessionReadable(session, req.user)
+    if (!readable) {
+      res.status(403).json({ error: 'Forbidden' })
+      return
+    }
+    if (row.status !== 'in_progress') {
+      res.status(400).json({ error: 'Session is not active' })
+      return
+    }
+
+    const ctx = await loadAdaptiveContext(pool, row.quiz_id, sessionId)
+    if (ctx.remainingIds.length === 0) {
+      res.json({
+        done: true,
+        total_questions: ctx.totalQuestions,
+        answered_count: ctx.answeredCount,
+        quiz_title: row.title,
+        time_per_question_seconds: Number(row.time_per_question_seconds) || 60,
+      })
+      return
+    }
+
+    const meta = parseSessionMetadata(row.metadata_json)
+    const adaptive = meta.adaptive && typeof meta.adaptive === 'object' ? meta.adaptive : {}
+    const ability =
+      typeof adaptive.ability === 'number' && Number.isFinite(adaptive.ability)
+        ? adaptive.ability
+        : normalizeQuizDefault(row.default_difficulty)
+
+    const pending = adaptive.pending_question_id
+    let nextId = null
+    if (pending && typeof pending === 'string' && ctx.remainingIds.includes(pending)) {
+      nextId = pending
+    } else {
+      nextId = pickNextQuestionId(ctx.remainingIds, ctx.questionsById, ability)
+      await persistAdaptiveMetadata(pool, sessionId, row.metadata_json, {
+        ability,
+        pending_question_id: nextId,
+      })
+    }
+
+    const question = await loadQuestionPayload(pool, nextId)
+    if (!question) {
+      res.status(500).json({ error: 'Question not found' })
+      return
+    }
+
+    res.json({
+      done: false,
+      quiz_title: row.title,
+      time_per_question_seconds: Number(row.time_per_question_seconds) || 60,
+      total_questions: ctx.totalQuestions,
+      progress_index: ctx.answeredCount + 1,
+      question,
+    })
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Server error' })
+  }
+}
+
 export async function submitAnswer(req, res) {
   try {
     const sessionId = String(req.params.sessionId || '')
@@ -133,23 +315,44 @@ export async function submitAnswer(req, res) {
     }
     const pool = getPool()
     const sRes = await pool.query(
-      `SELECT id, user_id, quiz_id, status FROM public.quiz_sessions WHERE id = $1 LIMIT 1`,
+      `SELECT qs.id, qs.user_id, qs.quiz_id, qs.status, qs.metadata_json,
+              q.time_per_question_seconds, q.default_difficulty
+       FROM public.quiz_sessions qs
+       JOIN public.quizzes q ON q.id = qs.quiz_id
+       WHERE qs.id = $1 LIMIT 1`,
       [sessionId],
     )
-    const session = sRes.rows[0]
-    if (!session) {
+    const sessionRow = sRes.rows[0]
+    if (!sessionRow) {
       res.status(404).json({ error: 'Session not found' })
       return
+    }
+    const session = {
+      id: sessionRow.id,
+      user_id: sessionRow.user_id,
+      quiz_id: sessionRow.quiz_id,
+      status: sessionRow.status,
     }
     const readable = await assertSessionReadable(session, req.user)
     if (!readable) {
       res.status(403).json({ error: 'Forbidden' })
       return
     }
-    if (session.status !== 'in_progress') {
+    if (sessionRow.status !== 'in_progress') {
       res.status(400).json({ error: 'Session is not active' })
       return
     }
+
+    const qRes = await pool.query(
+      `SELECT id, quiz_id, difficulty_level FROM public.questions WHERE id = $1 LIMIT 1`,
+      [questionId],
+    )
+    const qrow = qRes.rows[0]
+    if (!qrow || qrow.quiz_id !== sessionRow.quiz_id) {
+      res.status(400).json({ error: 'Invalid question for this quiz' })
+      return
+    }
+
     let aptitudeType = null
     let resolvedOptionId = null
     const isSkipped = Boolean(skipped)
@@ -165,15 +368,6 @@ export async function submitAnswer(req, res) {
       const opt = oRes.rows[0]
       if (!opt || opt.question_id !== questionId) {
         res.status(400).json({ error: 'Invalid option for question' })
-        return
-      }
-      const qRes = await pool.query(
-        `SELECT id, quiz_id FROM public.questions WHERE id = $1 LIMIT 1`,
-        [questionId],
-      )
-      const qrow = qRes.rows[0]
-      if (!qrow || qrow.quiz_id !== session.quiz_id) {
-        res.status(400).json({ error: 'Invalid question for this quiz' })
         return
       }
       aptitudeType = opt.aptitude_type
@@ -193,7 +387,56 @@ export async function submitAnswer(req, res) {
         isSkipped,
       ],
     )
-    res.json({ success: true })
+
+    const meta = parseSessionMetadata(sessionRow.metadata_json)
+    const adaptive = meta.adaptive && typeof meta.adaptive === 'object' ? meta.adaptive : {}
+    let ability =
+      typeof adaptive.ability === 'number' && Number.isFinite(adaptive.ability)
+        ? adaptive.ability
+        : normalizeQuizDefault(sessionRow.default_difficulty)
+
+    ability = adjustAbility(ability, {
+      skipped: isSkipped,
+      responseTimeMs,
+      timeLimitSec: sessionRow.time_per_question_seconds,
+      questionDifficulty: qrow.difficulty_level,
+    })
+
+    const ctx = await loadAdaptiveContext(pool, sessionRow.quiz_id, sessionId)
+    const tps = Number(sessionRow.time_per_question_seconds) || 60
+
+    if (ctx.remainingIds.length === 0) {
+      await persistAdaptiveMetadata(pool, sessionId, sessionRow.metadata_json, {
+        ability,
+        pending_question_id: null,
+      })
+      res.json({
+        success: true,
+        next_question: null,
+        total_questions: ctx.totalQuestions,
+        answered_count: ctx.answeredCount,
+        time_per_question_seconds: tps,
+      })
+      return
+    }
+
+    const nextId = pickNextQuestionId(ctx.remainingIds, ctx.questionsById, ability)
+    const nextQuestion = await loadQuestionPayload(pool, nextId)
+    if (!nextQuestion) {
+      res.status(500).json({ error: 'Next question not found' })
+      return
+    }
+    await persistAdaptiveMetadata(pool, sessionId, sessionRow.metadata_json, {
+      ability,
+      pending_question_id: nextId,
+    })
+    res.json({
+      success: true,
+      next_question: nextQuestion,
+      total_questions: ctx.totalQuestions,
+      answered_count: ctx.answeredCount,
+      time_per_question_seconds: tps,
+    })
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Server error' })
   }
@@ -289,7 +532,7 @@ export async function completeSession(req, res) {
     const sessionId = String(req.params.sessionId || '')
     const pool = getPool()
     const sRes = await pool.query(
-      `SELECT id, user_id, quiz_id, status FROM public.quiz_sessions WHERE id = $1 LIMIT 1`,
+      `SELECT id, user_id, quiz_id, status, metadata_json FROM public.quiz_sessions WHERE id = $1 LIMIT 1`,
       [sessionId],
     )
     const session = sRes.rows[0]
@@ -306,6 +549,7 @@ export async function completeSession(req, res) {
       res.status(400).json({ error: 'Session is not active' })
       return
     }
+    const prevMeta = parseSessionMetadata(session.metadata_json)
     const aRes = await pool.query(
       `SELECT aptitude_type, skipped FROM public.quiz_answers WHERE session_id = $1`,
       [sessionId],
@@ -334,11 +578,21 @@ export async function completeSession(req, res) {
         aptitude_type: r.aptitude_type,
       }))
     }
+    let adaptiveOut = null
+    if (prevMeta.adaptive && typeof prevMeta.adaptive === 'object') {
+      const { pending_question_id: _drop, ...rest } = prevMeta.adaptive
+      adaptiveOut = Object.keys(rest).length ? rest : null
+    }
     const metadataJson = {
+      ...prevMeta,
+      ...(adaptiveOut ? { adaptive: adaptiveOut } : {}),
       ai_provider: aiResult.ai_provider,
       profile: aiResult.profile,
       explanation: aiResult.explanation,
       top_strength: aiResult.top_strength,
+    }
+    if (!adaptiveOut) {
+      delete metadataJson.adaptive
     }
     await pool.query(
       `UPDATE public.quiz_sessions SET

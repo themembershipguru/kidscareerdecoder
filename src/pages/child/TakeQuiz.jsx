@@ -21,26 +21,42 @@ export function TakeQuiz() {
   const navigate = useNavigate()
   const sessionId = location.state?.sessionId
 
-  const [questions, setQuestions] = useState([])
+  const [currentQuestion, setCurrentQuestion] = useState(null)
+  const [totalQuestions, setTotalQuestions] = useState(0)
+  const [progressIndex, setProgressIndex] = useState(1)
   const [secPerQuestion, setSecPerQuestion] = useState(FALLBACK_SECONDS)
   const [quizTitle, setQuizTitle] = useState('')
   const [loadState, setLoadState] = useState('loading')
   const [loadError, setLoadError] = useState('')
 
-  const [currentIndex, setCurrentIndex] = useState(0)
   const [secondsLeft, setSecondsLeft] = useState(FALLBACK_SECONDS)
   const [encouragement, setEncouragement] = useState('')
   const [optionsLocked, setOptionsLocked] = useState(false)
   const intervalRef = useRef(null)
   const answeredCurrentRef = useRef(false)
   const finishQuestionRef = useRef(() => {})
-  const questionStartedAtRef = useRef(Date.now())
+  const questionStartedAtRef = useRef(0)
+  const currentQuestionIdRef = useRef(null)
 
   useEffect(() => {
     if (!sessionId) {
       navigate('/child/quiz', { replace: true })
     }
   }, [sessionId, navigate])
+
+  const fetchCurrentQuestion = useCallback(async () => {
+    const { data } = await api.get(
+      `/session/${encodeURIComponent(sessionId)}/current-question`,
+      { params: { slug } },
+    )
+    if (data?.done) {
+      return { done: true, data }
+    }
+    if (!data?.question) {
+      throw new Error('No question returned from the server.')
+    }
+    return { done: false, data }
+  }, [sessionId, slug])
 
   useEffect(() => {
     if (!slug || !sessionId) return
@@ -49,19 +65,38 @@ export function TakeQuiz() {
       setLoadState('loading')
       setLoadError('')
       try {
-        const { data } = await api.get(`/quiz/${encodeURIComponent(slug)}`)
+        const result = await fetchCurrentQuestion()
         if (cancelled) return
-        const quiz = data?.quiz
-        const list = quiz?.questions
-        if (!Array.isArray(list) || list.length === 0) {
-          throw new Error('No questions returned from the server.')
+        if (result.done) {
+          const { data } = result
+          setQuizTitle(data?.quiz_title ?? '')
+          setSecPerQuestion(
+            Number(data?.time_per_question_seconds) || FALLBACK_SECONDS,
+          )
+          setTotalQuestions(Number(data?.total_questions) || 0)
+          try {
+            const { data: completeData } = await api.post(
+              `/session/${encodeURIComponent(sessionId)}/complete`,
+            )
+            navigate(`/child/results/${sessionId}`, {
+              replace: true,
+              state: { result: completeData },
+            })
+          } catch (err) {
+            setLoadError(getApiError(err))
+            setLoadState('error')
+          }
+          return
         }
-        setQuestions(list)
-        setQuizTitle(quiz?.title ?? '')
+        const { data } = result
+        setQuizTitle(data.quiz_title ?? '')
         setSecPerQuestion(
-          Number(quiz?.time_per_question_seconds) || FALLBACK_SECONDS,
+          Number(data.time_per_question_seconds) || FALLBACK_SECONDS,
         )
-        setCurrentIndex(0)
+        setTotalQuestions(Number(data.total_questions) || 0)
+        setProgressIndex(Number(data.progress_index) || 1)
+        setCurrentQuestion(data.question)
+        currentQuestionIdRef.current = data.question.id
         setLoadState('ready')
       } catch (err) {
         if (!cancelled) {
@@ -73,43 +108,50 @@ export function TakeQuiz() {
     return () => {
       cancelled = true
     }
-  }, [slug, sessionId])
-
-  const totalQuestions = questions.length
-  const currentQuestion = questions[currentIndex]
+  }, [slug, sessionId, fetchCurrentQuestion, navigate])
 
   const finishQuestion = useCallback(
     async (payload) => {
-      const q = questions[currentIndex]
-      if (!q || !sessionId) return
+      const qid = currentQuestionIdRef.current
+      if (!qid || !sessionId) return
       const isSkip = payload?.skipped === true
+      let submitRes
       try {
-        await api.post(`/session/${sessionId}/answer`, {
-          question_id: q.id,
+        const { data } = await api.post(`/session/${sessionId}/answer`, {
+          question_id: qid,
           question_option_id: isSkip ? undefined : payload?.optionId,
           response_time_ms: payload?.responseTimeMs ?? null,
           skipped: isSkip,
         })
+        submitRes = data
       } catch {
         return
       }
-      const isLast = currentIndex === totalQuestions - 1
-      if (isLast) {
-        try {
-          const { data } = await api.post(`/session/${sessionId}/complete`)
-          navigate(`/child/results/${sessionId}`, {
-            replace: true,
-            state: { result: data },
-          })
-        } catch (err) {
-          setLoadError(getApiError(err))
-          setLoadState('error')
+
+      if (submitRes?.next_question) {
+        setCurrentQuestion(submitRes.next_question)
+        currentQuestionIdRef.current = submitRes.next_question.id
+        setProgressIndex((n) => n + 1)
+        if (submitRes.time_per_question_seconds != null) {
+          setSecPerQuestion(
+            Number(submitRes.time_per_question_seconds) || FALLBACK_SECONDS,
+          )
         }
         return
       }
-      setCurrentIndex((i) => i + 1)
+
+      try {
+        const { data } = await api.post(`/session/${sessionId}/complete`)
+        navigate(`/child/results/${sessionId}`, {
+          replace: true,
+          state: { result: data },
+        })
+      } catch (err) {
+        setLoadError(getApiError(err))
+        setLoadState('error')
+      }
     },
-    [currentIndex, navigate, questions, sessionId, totalQuestions],
+    [navigate, sessionId],
   )
 
   useEffect(() => {
@@ -118,10 +160,10 @@ export function TakeQuiz() {
 
   useEffect(() => {
     questionStartedAtRef.current = Date.now()
-  }, [currentIndex])
+  }, [currentQuestion?.id])
 
   useEffect(() => {
-    if (loadState !== 'ready' || totalQuestions === 0) return
+    if (loadState !== 'ready' || !currentQuestion || totalQuestions === 0) return
 
     answeredCurrentRef.current = false
     setOptionsLocked(false)
@@ -158,7 +200,9 @@ export function TakeQuiz() {
         intervalRef.current = null
       }
     }
-  }, [currentIndex, loadState, secPerQuestion, totalQuestions])
+    // Timer resets only when the active question id changes (not full question object identity).
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- see above
+  }, [currentQuestion?.id, loadState, secPerQuestion, totalQuestions])
 
   const handlePick = (option) => {
     if (answeredCurrentRef.current || optionsLocked) return
@@ -169,9 +213,11 @@ export function TakeQuiz() {
       intervalRef.current = null
     }
     setEncouragement(pickCheer())
-    const elapsed = Date.now() - questionStartedAtRef.current
     window.setTimeout(() => {
       setEncouragement('')
+      const started = questionStartedAtRef.current
+      const elapsed =
+        typeof started === 'number' && started > 0 ? Date.now() - started : 0
       void finishQuestion({
         optionId: option.id,
         responseTimeMs: elapsed,
@@ -186,18 +232,32 @@ export function TakeQuiz() {
     setLoadError('')
     ;(async () => {
       try {
-        const { data } = await api.get(`/quiz/${encodeURIComponent(slug)}`)
-        const quiz = data?.quiz
-        const list = quiz?.questions
-        if (!Array.isArray(list) || list.length === 0) {
-          throw new Error('No questions returned from the server.')
+        const result = await fetchCurrentQuestion()
+        if (result.done) {
+          const { data } = result
+          setQuizTitle(data?.quiz_title ?? '')
+          setSecPerQuestion(
+            Number(data?.time_per_question_seconds) || FALLBACK_SECONDS,
+          )
+          setTotalQuestions(Number(data?.total_questions) || 0)
+          const { data: completeData } = await api.post(
+            `/session/${encodeURIComponent(sessionId)}/complete`,
+          )
+          navigate(`/child/results/${sessionId}`, {
+            replace: true,
+            state: { result: completeData },
+          })
+          return
         }
-        setQuestions(list)
-        setQuizTitle(quiz?.title ?? '')
+        const { data } = result
+        setQuizTitle(data.quiz_title ?? '')
         setSecPerQuestion(
-          Number(quiz?.time_per_question_seconds) || FALLBACK_SECONDS,
+          Number(data.time_per_question_seconds) || FALLBACK_SECONDS,
         )
-        setCurrentIndex(0)
+        setTotalQuestions(Number(data.total_questions) || 0)
+        setProgressIndex(Number(data.progress_index) || 1)
+        setCurrentQuestion(data.question)
+        currentQuestionIdRef.current = data.question.id
         setLoadState('ready')
       } catch (err) {
         setLoadError(getApiError(err))
@@ -241,7 +301,7 @@ export function TakeQuiz() {
     )
   }
 
-  const questionProgressPercent = ((currentIndex + 1) / totalQuestions) * 100
+  const questionProgressPercent = (progressIndex / totalQuestions) * 100
   const timerPercent = (secondsLeft / secPerQuestion) * 100
   const urgent = secondsLeft <= 10
 
@@ -255,7 +315,7 @@ export function TakeQuiz() {
       <div className="space-y-2">
         <div className="flex items-center justify-between text-sm font-medium text-slate-700">
           <span>
-            Question {currentIndex + 1} of {totalQuestions}
+            Question {progressIndex} of {totalQuestions}
           </span>
           <span
             className={`tabular-nums ${urgent ? 'animate-pulse font-bold text-rose-600' : 'text-sky-600'}`}
