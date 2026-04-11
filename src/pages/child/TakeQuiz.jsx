@@ -1,14 +1,29 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { apiFetch } from '../../lib/api.js'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
+import { api, getApiError } from '../../utils/api.js'
 
-const DEFAULT_QUIZ_ID = 'quiz-aptitude-v1'
 const FALLBACK_SECONDS = 60
+const CHEERS = [
+  'Great choice!',
+  'Awesome!',
+  'Keep going!',
+  'Nice pick!',
+  'You rock!',
+]
+
+function pickCheer() {
+  return CHEERS[Math.floor(Math.random() * CHEERS.length)]
+}
 
 export function TakeQuiz() {
+  const { slug } = useParams()
+  const location = useLocation()
   const navigate = useNavigate()
+  const sessionId = location.state?.sessionId
+
   const [questions, setQuestions] = useState([])
   const [secPerQuestion, setSecPerQuestion] = useState(FALLBACK_SECONDS)
+  const [quizTitle, setQuizTitle] = useState('')
   const [loadState, setLoadState] = useState('loading')
   const [loadError, setLoadError] = useState('')
 
@@ -16,35 +31,41 @@ export function TakeQuiz() {
   const [secondsLeft, setSecondsLeft] = useState(FALLBACK_SECONDS)
   const [encouragement, setEncouragement] = useState('')
   const [optionsLocked, setOptionsLocked] = useState(false)
-  const answersRef = useRef([])
   const intervalRef = useRef(null)
   const answeredCurrentRef = useRef(false)
   const finishQuestionRef = useRef(() => {})
+  const questionStartedAtRef = useRef(Date.now())
 
   useEffect(() => {
+    if (!sessionId) {
+      navigate('/child/quiz', { replace: true })
+    }
+  }, [sessionId, navigate])
+
+  useEffect(() => {
+    if (!slug || !sessionId) return
     let cancelled = false
     ;(async () => {
       setLoadState('loading')
       setLoadError('')
       try {
-        const data = await apiFetch(`/api/quizzes/${DEFAULT_QUIZ_ID}`)
+        const { data } = await api.get(`/quiz/${encodeURIComponent(slug)}`)
         if (cancelled) return
-        const list = data?.questions
+        const quiz = data?.quiz
+        const list = quiz?.questions
         if (!Array.isArray(list) || list.length === 0) {
           throw new Error('No questions returned from the server.')
         }
         setQuestions(list)
+        setQuizTitle(quiz?.title ?? '')
         setSecPerQuestion(
-          Number(data.timePerQuestionSeconds) || FALLBACK_SECONDS,
+          Number(quiz?.time_per_question_seconds) || FALLBACK_SECONDS,
         )
         setCurrentIndex(0)
-        answersRef.current = []
         setLoadState('ready')
       } catch (err) {
         if (!cancelled) {
-          setLoadError(
-            err instanceof Error ? err.message : 'Could not load the quiz.',
-          )
+          setLoadError(getApiError(err))
           setLoadState('error')
         }
       }
@@ -52,33 +73,52 @@ export function TakeQuiz() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [slug, sessionId])
 
   const totalQuestions = questions.length
   const currentQuestion = questions[currentIndex]
 
   const finishQuestion = useCallback(
-    (aptitudeType) => {
+    async (payload) => {
       const q = questions[currentIndex]
-      if (!q) return
-      const next = [...answersRef.current, { questionId: q.id, aptitudeType }]
-      answersRef.current = next
+      if (!q || !sessionId) return
+      const isSkip = payload?.skipped === true
+      try {
+        await api.post(`/session/${sessionId}/answer`, {
+          question_id: q.id,
+          question_option_id: isSkip ? undefined : payload?.optionId,
+          response_time_ms: payload?.responseTimeMs ?? null,
+          skipped: isSkip,
+        })
+      } catch {
+        return
+      }
       const isLast = currentIndex === totalQuestions - 1
       if (isLast) {
-        navigate('/child/results', {
-          replace: true,
-          state: { quizAnswers: next, quizId: DEFAULT_QUIZ_ID },
-        })
+        try {
+          const { data } = await api.post(`/session/${sessionId}/complete`)
+          navigate(`/child/results/${sessionId}`, {
+            replace: true,
+            state: { result: data },
+          })
+        } catch (err) {
+          setLoadError(getApiError(err))
+          setLoadState('error')
+        }
         return
       }
       setCurrentIndex((i) => i + 1)
     },
-    [currentIndex, navigate, questions, totalQuestions],
+    [currentIndex, navigate, questions, sessionId, totalQuestions],
   )
 
   useEffect(() => {
     finishQuestionRef.current = finishQuestion
   }, [finishQuestion])
+
+  useEffect(() => {
+    questionStartedAtRef.current = Date.now()
+  }, [currentIndex])
 
   useEffect(() => {
     if (loadState !== 'ready' || totalQuestions === 0) return
@@ -100,7 +140,11 @@ export function TakeQuiz() {
           queueMicrotask(() => {
             if (!answeredCurrentRef.current) {
               answeredCurrentRef.current = true
-              finishQuestionRef.current(null)
+              const elapsed = Date.now() - questionStartedAtRef.current
+              finishQuestionRef.current({
+                skipped: true,
+                responseTimeMs: elapsed,
+              })
             }
           })
           return 0
@@ -116,7 +160,7 @@ export function TakeQuiz() {
     }
   }, [currentIndex, loadState, secPerQuestion, totalQuestions])
 
-  const handlePick = (aptitudeType) => {
+  const handlePick = (option) => {
     if (answeredCurrentRef.current || optionsLocked) return
     answeredCurrentRef.current = true
     setOptionsLocked(true)
@@ -124,37 +168,46 @@ export function TakeQuiz() {
       clearInterval(intervalRef.current)
       intervalRef.current = null
     }
-    setEncouragement('Great choice! Keep going.')
+    setEncouragement(pickCheer())
+    const elapsed = Date.now() - questionStartedAtRef.current
     window.setTimeout(() => {
       setEncouragement('')
-      finishQuestion(aptitudeType)
-    }, 1500)
+      void finishQuestion({
+        optionId: option.id,
+        responseTimeMs: elapsed,
+        skipped: false,
+      })
+    }, 1000)
   }
 
   const handleRetry = () => {
+    if (!slug || !sessionId) return
     setLoadState('loading')
     setLoadError('')
     ;(async () => {
       try {
-        const data = await apiFetch(`/api/quizzes/${DEFAULT_QUIZ_ID}`)
-        const list = data?.questions
+        const { data } = await api.get(`/quiz/${encodeURIComponent(slug)}`)
+        const quiz = data?.quiz
+        const list = quiz?.questions
         if (!Array.isArray(list) || list.length === 0) {
           throw new Error('No questions returned from the server.')
         }
         setQuestions(list)
+        setQuizTitle(quiz?.title ?? '')
         setSecPerQuestion(
-          Number(data.timePerQuestionSeconds) || FALLBACK_SECONDS,
+          Number(quiz?.time_per_question_seconds) || FALLBACK_SECONDS,
         )
         setCurrentIndex(0)
-        answersRef.current = []
         setLoadState('ready')
       } catch (err) {
-        setLoadError(
-          err instanceof Error ? err.message : 'Could not load the quiz.',
-        )
+        setLoadError(getApiError(err))
         setLoadState('error')
       }
     })()
+  }
+
+  if (!sessionId) {
+    return null
   }
 
   if (loadState === 'loading' || loadState === 'error') {
@@ -171,9 +224,9 @@ export function TakeQuiz() {
               {loadError || 'Something went wrong.'}
             </p>
             <p className="mt-2 text-xs text-rose-700/90">
-              Start the API with{' '}
-              <code className="rounded bg-white/80 px-1 py-0.5">npm run server</code>{' '}
-              (and ensure Supabase env is set), then retry.
+              Run{' '}
+              <code className="rounded bg-white/80 px-1 py-0.5">npm run backend</code>{' '}
+              on port 5000, then retry.
             </p>
             <button
               type="button"
@@ -190,15 +243,25 @@ export function TakeQuiz() {
 
   const questionProgressPercent = ((currentIndex + 1) / totalQuestions) * 100
   const timerPercent = (secondsLeft / secPerQuestion) * 100
+  const urgent = secondsLeft <= 10
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">
+      {quizTitle && (
+        <p className="text-center text-sm font-semibold text-[#1A1A2E]/60">
+          {quizTitle}
+        </p>
+      )}
       <div className="space-y-2">
         <div className="flex items-center justify-between text-sm font-medium text-[#1A1A2E]/80">
           <span>
             Question {currentIndex + 1} of {totalQuestions}
           </span>
-          <span className="tabular-nums text-[#00D4FF]">{secondsLeft}s</span>
+          <span
+            className={`tabular-nums ${urgent ? 'animate-pulse font-bold text-rose-600' : 'text-[#00D4FF]'}`}
+          >
+            {secondsLeft}s
+          </span>
         </div>
         <div className="h-3 w-full overflow-hidden rounded-full bg-[#1A1A2E]/10">
           <div
@@ -208,7 +271,7 @@ export function TakeQuiz() {
         </div>
         <div className="h-2 w-full overflow-hidden rounded-full bg-[#1A1A2E]/5">
           <div
-            className="h-full rounded-full bg-[#1A1A2E]/40 transition-[width] duration-1000 ease-linear"
+            className={`h-full rounded-full transition-[width] duration-1000 ease-linear ${urgent ? 'bg-rose-500' : 'bg-[#1A1A2E]/40'}`}
             style={{ width: `${timerPercent}%` }}
           />
         </div>
@@ -222,18 +285,18 @@ export function TakeQuiz() {
 
       <div className="rounded-3xl border border-[#1A1A2E]/10 bg-white p-6 shadow-lg shadow-[#1A1A2E]/5">
         <h1 className="text-xl font-bold leading-snug text-[#1A1A2E] sm:text-2xl">
-          {currentQuestion?.text}
+          {currentQuestion?.body}
         </h1>
         <ul className="mt-6 flex flex-col gap-3">
           {(currentQuestion?.options ?? []).map((option) => (
-            <li key={option.id ?? option.text}>
+            <li key={option.id}>
               <button
                 type="button"
-                onClick={() => handlePick(option.aptitudeType)}
+                onClick={() => handlePick(option)}
                 disabled={optionsLocked}
                 className="w-full rounded-2xl border-2 border-[#1A1A2E]/10 bg-slate-50 px-4 py-4 text-left text-base font-medium text-[#1A1A2E] transition hover:border-[#00D4FF]/60 hover:bg-[#00D4FF]/5 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {option.text}
+                {option.label}
               </button>
             </li>
           ))}

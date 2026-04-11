@@ -1,11 +1,15 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { Footer } from './components/Footer.jsx'
 import { Header } from './components/Header.jsx'
 import { PrivateRoute } from './components/PrivateRoute.jsx'
 import { AuthProvider, useAuth } from './context'
 import { Login } from './pages/auth/Login.jsx'
 import { Register } from './pages/auth/Register.jsx'
+import { NotFound } from './pages/NotFound.jsx'
 import { AddChild } from './pages/parent/AddChild.jsx'
+import { ChildReport } from './pages/parent/ChildReport.jsx'
 import { ParentDashboard } from './pages/parent/ParentDashboard.jsx'
+import { QuizSelect } from './pages/child/QuizSelect.jsx'
 import { TakeQuiz } from './pages/child/TakeQuiz.jsx'
 import { Results } from './pages/child/Results.jsx'
 
@@ -49,7 +53,23 @@ function AppRoutes() {
         }
       />
       <Route
+        path="/parent/child/:id"
+        element={
+          <PrivateRoute allowedRoles={parentAllowedRoles}>
+            <ChildReport />
+          </PrivateRoute>
+        }
+      />
+      <Route
         path="/child/quiz"
+        element={
+          <PrivateRoute allowedRoles={childAllowedRoles}>
+            <QuizSelect />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/child/quiz/:slug"
         element={
           <PrivateRoute allowedRoles={childAllowedRoles}>
             <TakeQuiz />
@@ -57,14 +77,14 @@ function AppRoutes() {
         }
       />
       <Route
-        path="/child/results"
+        path="/child/results/:sessionId"
         element={
           <PrivateRoute allowedRoles={childAllowedRoles}>
             <Results />
           </PrivateRoute>
         }
       />
-      <Route path="*" element={<Navigate to="/" replace />} />
+      <Route path="*" element={<NotFound />} />
     </Routes>
   )
 }
@@ -78,6 +98,7 @@ export default function App() {
           <main className="flex-1">
             <AppRoutes />
           </main>
+          <Footer />
         </div>
       </BrowserRouter>
     </AuthProvider>

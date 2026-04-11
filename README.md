@@ -21,11 +21,17 @@ Full-stack aptitude quiz for kids: React (Vite) front end, Express API, and Post
 
 4. **Usage** — Register a parent → **Add child** (copy the child’s sign-in email) → sign in as that child → complete the quiz → parent dashboard shows **live** sessions from the database.
 
-5. **Run locally**
+5. **Run locally (full stack with JWT API)**
 
    ```bash
-   npm run build && npm start   # one process: API + static app (uses PORT, default 3001)
-   npm run dev                  # Vite only (proxies /api → localhost:3001; run `npm run server` in another terminal)
+   npm run backend   # Express API on PORT 5000 (set backend/.env with DATABASE_URL, JWT_SECRET)
+   npm run dev       # Vite (proxies /api → localhost:5000)
+   ```
+
+   Legacy single-process app (older `server/` + static):
+
+   ```bash
+   npm run build && npm start   # API + static (PORT 3001)
    ```
 
 ## Hostinger (Node / Git deploy)

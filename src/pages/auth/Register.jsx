@@ -1,12 +1,7 @@
 import { useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context'
-import { apiPost } from '../../lib/api.js'
-import { stableParentId } from '../../lib/userIds.js'
-
-function makeMockToken() {
-  return `mock.${globalThis.crypto?.randomUUID?.() ?? Date.now()}`
-}
+import { api, getApiError } from '../../utils/api.js'
 
 export function Register() {
   const { login, user, token } = useAuth()
@@ -43,30 +38,28 @@ export function Register() {
     }
     setSubmitting(true)
     try {
-      const id = await stableParentId(email)
-      await apiPost('/api/users/sync', {
-        id,
+      await api.post('/auth/register', {
+        full_name: fullName.trim(),
         email: email.trim(),
-        fullName: fullName.trim(),
-        role: 'parent',
-        parentUserId: null,
+        password,
+      })
+      const { data } = await api.post('/auth/login', {
+        email: email.trim(),
+        password,
       })
       login(
         {
-          id,
-          name: fullName.trim(),
-          role: 'parent',
-          parentId: null,
+          id: data.user.id,
+          full_name: data.user.full_name,
+          name: data.user.full_name,
+          role: data.user.role,
+          email: data.user.email,
         },
-        makeMockToken(),
+        data.token,
       )
       navigate('/parent/dashboard', { replace: true })
     } catch (err) {
-      setFormError(
-        err instanceof Error
-          ? err.message
-          : 'Could not reach the server. Check your connection and try again.',
-      )
+      setFormError(getApiError(err))
     } finally {
       setSubmitting(false)
     }
@@ -79,8 +72,7 @@ export function Register() {
           Create account
         </h1>
         <p className="mt-2 text-sm leading-relaxed text-[#1A1A2E]/65">
-          Parents sign up here to add children and review quiz progress stored in
-          your database.
+          Parents register here. You will use this email and password to sign in.
         </p>
 
         <form onSubmit={handleSubmit} className="mt-8 space-y-5">

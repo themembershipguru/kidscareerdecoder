@@ -19,19 +19,31 @@ function readStoredAuth() {
   }
 }
 
+function normalizeUser(u) {
+  if (!u) return u
+  const fullName = u.full_name ?? u.name ?? ''
+  return {
+    ...u,
+    full_name: fullName,
+    name: fullName,
+  }
+}
+
 export function AuthProvider({ children }) {
   const initial = readStoredAuth()
-  const [user, setUser] = useState(initial.user)
+  const [user, setUser] = useState(() => normalizeUser(initial.user))
   const [token, setToken] = useState(initial.token)
 
   const value = useMemo(
     () => ({
       user,
       token,
+      isAuthenticated: Boolean(user && token),
       login(nextUser, nextToken) {
+        const normalized = normalizeUser(nextUser)
         localStorage.setItem(storageTokenKey, nextToken)
-        localStorage.setItem(storageUserKey, JSON.stringify(nextUser))
-        setUser(nextUser)
+        localStorage.setItem(storageUserKey, JSON.stringify(normalized))
+        setUser(normalized)
         setToken(nextToken)
       },
       logout() {

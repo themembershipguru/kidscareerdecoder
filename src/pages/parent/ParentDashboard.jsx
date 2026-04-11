@@ -1,72 +1,91 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../context'
-import { apiFetch } from '../../lib/api.js'
-import { ageFromBirthYear, labelForAptitudeKey } from '../../lib/aptitudeLabels.js'
+import { api, getApiError } from '../../utils/api.js'
+import {
+  ageFromBirthYear,
+  ageFromDateOfBirth,
+  labelForAptitudeKey,
+} from '../../lib/aptitudeLabels.js'
 
 function formatQuizDate(isoDate) {
   if (!isoDate) return '—'
-  const parsed = new Date(`${isoDate}T12:00:00`)
-  if (Number.isNaN(parsed.getTime())) return isoDate
+  const parsed = new Date(isoDate)
+  if (Number.isNaN(parsed.getTime())) return '—'
   return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(
     parsed,
   )
 }
 
 export function ParentDashboard() {
-  const { user } = useAuth()
-  const [children, setChildren] = useState([])
+  const { user, token } = useAuth()
+  const [rows, setRows] = useState([])
   const [loadState, setLoadState] = useState('loading')
   const [error, setError] = useState('')
 
   useEffect(() => {
-    const parentId = user?.id
-    if (!parentId) return
-
+    if (!user?.id || !token) return
     let cancelled = false
 
-    ;(async () => {
-      await Promise.resolve()
-      if (cancelled) return
+    async function fetchDashboard() {
       setLoadState('loading')
       setError('')
       try {
-        const data = await apiFetch(
-          `/api/parent/dashboard?parentUserId=${encodeURIComponent(parentId)}`,
-        )
+        const [childrenRes, analyticsRes] = await Promise.all([
+          api.get('/auth/children'),
+          api.get('/analytics/children'),
+        ])
         if (cancelled) return
-        setChildren(Array.isArray(data.children) ? data.children : [])
+        const byA = new Map(
+          (analyticsRes.data ?? []).map((x) => [x.child_id, x]),
+        )
+        const merged = (childrenRes.data ?? []).map((c) => ({
+          id: c.id,
+          fullName: c.full_name,
+          birthYear: c.birth_year,
+          dateOfBirth: c.date_of_birth,
+          signInEmail: c.email,
+          ...byA.get(c.id),
+        }))
+        setRows(merged)
         setLoadState('ready')
       } catch (err) {
         if (cancelled) return
-        setError(
-          err instanceof Error ? err.message : 'Could not load dashboard data.',
-        )
+        setError(getApiError(err))
         setLoadState('error')
       }
-    })()
+    }
 
+    void fetchDashboard()
     return () => {
       cancelled = true
     }
-  }, [user?.id])
+  }, [user?.id, token])
 
   async function retry() {
-    const parentId = user?.id
-    if (!parentId) return
-    await Promise.resolve()
+    if (!user?.id || !token) return
     setLoadState('loading')
     setError('')
     try {
-      const data = await apiFetch(
-        `/api/parent/dashboard?parentUserId=${encodeURIComponent(parentId)}`,
+      const [childrenRes, analyticsRes] = await Promise.all([
+        api.get('/auth/children'),
+        api.get('/analytics/children'),
+      ])
+      const byA = new Map(
+        (analyticsRes.data ?? []).map((x) => [x.child_id, x]),
       )
-      setChildren(Array.isArray(data.children) ? data.children : [])
+      const merged = (childrenRes.data ?? []).map((c) => ({
+        id: c.id,
+        fullName: c.full_name,
+        birthYear: c.birth_year,
+        dateOfBirth: c.date_of_birth,
+        signInEmail: c.email,
+        ...byA.get(c.id),
+      }))
+      setRows(merged)
       setLoadState('ready')
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : 'Could not load dashboard data.',
-      )
+      setError(getApiError(err))
       setLoadState('error')
     }
   }
@@ -82,8 +101,8 @@ export function ParentDashboard() {
             Children &amp; progress
           </h1>
           <p className="mt-3 max-w-2xl text-base leading-relaxed text-slate-600">
-            Every row below comes from your database: children you added and
-            quiz sessions they completed while signed in as that child.
+            Data loads from your database through the API. Open a child for
+            charts and session history.
           </p>
         </header>
 
@@ -99,20 +118,19 @@ export function ParentDashboard() {
             <button
               type="button"
               onClick={() => void retry()}
-              className="mt-4 rounded-lg bg-slate-900 px-4 py-2 text-sm font-bold text-cyan-300 hover:bg-slate-800"
+              className="mt-4 rounded-lg bg-slate-900 px-4 py-2 text-sm font-bold text-cyan-300 transition hover:bg-slate-800"
             >
               Retry
             </button>
           </div>
         )}
 
-        {loadState === 'ready' && children.length === 0 && (
+        {loadState === 'ready' && rows.length === 0 && (
           <div className="rounded-2xl border-2 border-dashed border-slate-300 bg-white p-10 text-center shadow-sm">
             <p className="text-lg font-bold text-slate-900">No children yet</p>
             <p className="mx-auto mt-2 max-w-md text-slate-600">
-              Add a child to create their account. You&apos;ll get a sign-in
-              email to use on the login page so quiz results save to their
-              profile.
+              Add a child to create their account. You will get a sign-in email
+              and initial password to share with them.
             </p>
             <Link
               to="/parent/add-child"
@@ -123,11 +141,17 @@ export function ParentDashboard() {
           </div>
         )}
 
-        {loadState === 'ready' && children.length > 0 && (
+        {loadState === 'ready' && rows.length > 0 && (
           <ul className="flex flex-col gap-8">
-            {children.map((child) => {
-              const age = ageFromBirthYear(child.birthYear)
-              const topLabel = labelForAptitudeKey(child.topAptitudeKey)
+            {rows.map((child) => {
+              const age =
+                ageFromDateOfBirth(child.dateOfBirth) ??
+                ageFromBirthYear(child.birthYear)
+              const sessions = child.total_sessions ?? 0
+              const profileLabel =
+                typeof child.latest_profile === 'string'
+                  ? child.latest_profile
+                  : labelForAptitudeKey(child.latest_profile)
               return (
                 <li
                   key={child.id}
@@ -144,48 +168,44 @@ export function ParentDashboard() {
                         </span>
                       )}
                       <span className="text-sm font-medium text-slate-500">
-                        {child.quizzesCompleted} quiz
-                        {child.quizzesCompleted === 1 ? '' : 'es'} completed
+                        {sessions} quiz{sessions === 1 ? '' : 'es'} completed
                       </span>
                     </div>
                     <div className="mt-5">
                       <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Strongest signal (latest quiz)
+                        Latest profile
                       </p>
                       <p className="mt-1 text-xl font-bold text-slate-900">
-                        {child.quizzesCompleted > 0 ? topLabel : '—'}
+                        {sessions > 0 ? profileLabel : '—'}
                       </p>
+                      {sessions > 0 && (
+                        <p className="mt-1 text-sm text-slate-600">
+                          Last active: {formatQuizDate(child.last_active)}
+                        </p>
+                      )}
                     </div>
+                    {sessions === 0 && (
+                      <p className="mt-3 text-sm text-slate-600">
+                        No quizzes taken yet. Have them sign in with their child
+                        email and pick a quiz.
+                      </p>
+                    )}
                   </div>
 
                   <div className="px-6 py-5 sm:px-8">
-                    <h3 className="text-xs font-bold uppercase tracking-[0.15em] text-slate-500">
-                      Recent sessions
-                    </h3>
-                    {child.recentSessions.length === 0 ? (
-                      <p className="mt-3 text-sm text-slate-600">
-                        No completed quizzes yet. Have them sign in with their
-                        child email and take the quiz.
+                    <Link
+                      to={`/parent/child/${child.id}`}
+                      className="inline-flex rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-bold text-cyan-300 transition hover:bg-slate-800"
+                    >
+                      View full report
+                    </Link>
+                    {child.signInEmail && (
+                      <p className="mt-3 break-all text-xs text-slate-500">
+                        Child sign-in:{' '}
+                        <span className="font-mono text-slate-700">
+                          {child.signInEmail}
+                        </span>
                       </p>
-                    ) : (
-                      <ul className="mt-4 divide-y divide-slate-100 rounded-xl border border-slate-200">
-                        {child.recentSessions.map((s) => (
-                          <li
-                            key={s.sessionId}
-                            className="flex flex-col gap-1 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between"
-                          >
-                            <span className="text-sm font-semibold text-slate-900">
-                              {formatQuizDate(s.completedAt)}
-                            </span>
-                            <span className="text-sm text-slate-600">
-                              Top profile:{' '}
-                              <span className="font-bold text-slate-900">
-                                {labelForAptitudeKey(s.topAptitudeKey)}
-                              </span>
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
                     )}
                   </div>
                 </li>

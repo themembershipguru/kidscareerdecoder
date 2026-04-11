@@ -1,8 +1,14 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { useLocation } from 'react-router-dom'
-import { useAuth } from '../../context'
-import { apiFetch, apiPost } from '../../lib/api.js'
-import { aptitudeOrder, buildScoresFromAnswers, rankAptitudes } from '../../lib/quizScoring.js'
+import { useEffect, useMemo, useState } from 'react'
+import { Link, useLocation, useParams } from 'react-router-dom'
+import {
+  PolarAngleAxis,
+  PolarGrid,
+  Radar,
+  RadarChart,
+  ResponsiveContainer,
+} from 'recharts'
+import { api, getApiError } from '../../utils/api.js'
+import { aptitudeOrder } from '../../lib/quizScoring.js'
 
 const friendlyTypeLabels = {
   logical: 'Logical',
@@ -49,131 +55,179 @@ const sampleCareersByTopAptitude = {
   practical: ['Carpenter', 'Bike Mechanic', 'Chef'],
 }
 
-export function Results() {
-  const { user } = useAuth()
-  const location = useLocation()
-  const saveSentRef = useRef(false)
-  const quizAnswers = useMemo(
-    () => location.state?.quizAnswers ?? [],
-    [location.state?.quizAnswers],
-  )
+const careerEmojis = ['🌟', '🚀', '✨']
 
-  /** Loaded titles for `type`; stale entries ignored unless `type === topType`. */
-  const [careerData, setCareerData] = useState(null)
-
-  const {
-    scores,
-    topType,
-    barScaleMax,
-    heroHeading,
-    topSpotlightLine,
-    runnerTagline,
-    hasQuizSignals,
-  } = useMemo(() => {
-    const nextScores = buildScoresFromAnswers(quizAnswers)
-    const ranked = rankAptitudes(nextScores)
-    const primary = ranked[0]
-    const secondary = ranked[1]
-    const totalTagged = aptitudeOrder.reduce((sum, k) => sum + nextScores[k], 0)
-    const maxCount = Math.max(...aptitudeOrder.map((k) => nextScores[k]), 0)
-    const scale = maxCount > 0 ? maxCount : 1
-    const signals = totalTagged > 0
-    return {
-      scores: nextScores,
-      topType: primary,
-      barScaleMax: scale,
-      heroHeading: signals
-        ? heroHeadingByType[primary]
-        : 'Your sparkle map is ready when you are!',
-      topSpotlightLine: signals
-        ? secondSpotlightByType[primary]
-        : 'Finish the fun quiz to see your strengths light up here.',
-      runnerTagline: signals
-        ? `Your next-brightest spark is ${friendlyTypeLabels[secondary]} — ${secondSpotlightByType[secondary]}`
-        : 'Every path you pick in the quiz adds another colorful stripe.',
-      hasQuizSignals: signals,
+function normalizeScores(raw) {
+  if (!raw) return {}
+  if (typeof raw === 'string') {
+    try {
+      return JSON.parse(raw)
+    } catch {
+      return {}
     }
-  }, [quizAnswers])
+  }
+  return raw
+}
+
+function careerTitle(c) {
+  if (typeof c === 'string') return c
+  return c?.title ?? ''
+}
+
+function headlineFromProfile(profile, topAptitude) {
+  if (profile && typeof profile === 'string') {
+    const part = profile.split('-')[0]?.trim()
+    if (part) return `You're a ${part} Explorer!`
+  }
+  return heroHeadingByType[topAptitude] ?? "You're one of a kind!"
+}
+
+export function Results() {
+  const { sessionId } = useParams()
+  const location = useLocation()
+  const [fetched, setFetched] = useState(null)
+  const [fetchErr, setFetchErr] = useState('')
+
+  const inlineResult = location.state?.result
 
   useEffect(() => {
-    if (!hasQuizSignals || !topType) return
+    if (inlineResult || !sessionId) return
     let cancelled = false
     ;(async () => {
+      setFetchErr('')
       try {
-        const rows = await apiFetch(
-          `/api/careers?aptitude=${encodeURIComponent(topType)}`,
-        )
-        if (cancelled || !Array.isArray(rows)) return
-        const titles = rows.map((r) => r.title).filter(Boolean)
-        setCareerData({ type: topType, titles: titles.length > 0 ? titles : null })
-      } catch {
-        if (!cancelled) setCareerData({ type: topType, titles: null })
+        const { data } = await api.get(`/session/${sessionId}`)
+        if (cancelled) return
+        setFetched(data)
+      } catch (err) {
+        if (!cancelled) setFetchErr(getApiError(err))
       }
     })()
     return () => {
       cancelled = true
     }
-  }, [hasQuizSignals, topType])
+  }, [inlineResult, sessionId])
 
-  const topCareers = useMemo(() => {
-    if (!hasQuizSignals) return sampleCareersByTopAptitude.creative
-    if (
-      careerData?.type === topType &&
-      careerData.titles &&
-      careerData.titles.length > 0
-    ) {
-      return careerData.titles
-    }
-    return (
-      sampleCareersByTopAptitude[topType] ?? sampleCareersByTopAptitude.creative
-    )
-  }, [hasQuizSignals, topType, careerData])
-
-  const quizIdForSave = location.state?.quizId ?? 'quiz-aptitude-v1'
-  const answersKey = JSON.stringify(quizAnswers)
-
-  useEffect(() => {
-    if (!hasQuizSignals || user?.role !== 'child' || !user?.id) return
-    if (!quizAnswers.length) return
-
-    const fingerprint = `${user.id}|${quizIdForSave}|${answersKey}`
-    const key = 'kcd-saved-quiz'
-    try {
-      if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem(key) === fingerprint) {
-        return
+  const view = useMemo(() => {
+    if (inlineResult) {
+      return {
+        scores: normalizeScores(inlineResult.scores),
+        topAptitude: inlineResult.top_aptitude,
+        profile: inlineResult.profile,
+        explanation: inlineResult.explanation,
+        careers: inlineResult.careers ?? [],
       }
+    }
+    if (fetched) {
+      const meta = fetched.metadata_json
+      const profile = meta?.profile ?? fetched.top_aptitude
+      const explanation = meta?.explanation ?? ''
+      return {
+        scores: normalizeScores(fetched.scores_json),
+        topAptitude: fetched.top_aptitude,
+        profile,
+        explanation,
+        careers: [],
+      }
+    }
+    return null
+  }, [inlineResult, fetched])
+
+  const scores = view?.scores ?? {}
+  const topAptitude = view?.topAptitude ?? 'creative'
+  const hasSignals = aptitudeOrder.some((k) => Number(scores[k] ?? 0) > 0)
+
+  const heroHeading = hasSignals
+    ? headlineFromProfile(view?.profile, topAptitude)
+    : 'Your sparkle map is ready when you are!'
+
+  const topSpotlightLine = hasSignals
+    ? view?.explanation || secondSpotlightByType[topAptitude] || ''
+    : 'Finish the fun quiz to see your strengths light up here.'
+
+  const ranked = [...aptitudeOrder].sort(
+    (a, b) => Number(scores[b] ?? 0) - Number(scores[a] ?? 0),
+  )
+  const secondary = ranked[1] ?? ranked[0]
+  const runnerTagline = hasSignals
+    ? `Your next-brightest spark is ${friendlyTypeLabels[secondary]} — ${secondSpotlightByType[secondary]}`
+    : 'Every path you pick in the quiz adds another colorful stripe.'
+
+  const barScaleMax = Math.max(
+    ...aptitudeOrder.map((k) => Number(scores[k] ?? 0)),
+    1,
+  )
+
+  const radarData = aptitudeOrder.map((k) => ({
+    dimension: friendlyTypeLabels[k],
+    value: Number(scores[k] ?? 0),
+  }))
+
+  let topCareers = []
+  if (view?.careers?.length) {
+    topCareers = view.careers.map((c) => careerTitle(c)).filter(Boolean)
+  }
+  if (!topCareers.length && hasSignals) {
+    topCareers =
+      sampleCareersByTopAptitude[topAptitude] ??
+      sampleCareersByTopAptitude.creative
+  }
+  if (!topCareers.length) {
+    topCareers = sampleCareersByTopAptitude.creative
+  }
+
+  async function handleShareWithParent() {
+    const lines = [
+      'KidsCareerDecoder — quiz snapshot',
+      '',
+      heroHeading,
+      '',
+      topSpotlightLine,
+      '',
+      'Strength stripes (%):',
+      ...aptitudeOrder.map(
+        (k) => `${friendlyTypeLabels[k]}: ${scores[k] ?? 0}%`,
+      ),
+      '',
+      'Career ideas:',
+      ...topCareers.map((t) => `• ${t}`),
+    ]
+    try {
+      await navigator.clipboard.writeText(lines.join('\n'))
     } catch {
       /* ignore */
     }
+  }
 
-    if (saveSentRef.current) return
-    saveSentRef.current = true
+  if (!sessionId) {
+    return (
+      <div className="p-8 text-center text-[#1A1A2E]">
+        <p>Missing session.</p>
+        <Link to="/child/quiz" className="mt-4 inline-block text-[#00D4FF]">
+          Back to quizzes
+        </Link>
+      </div>
+    )
+  }
 
-    const scores = buildScoresFromAnswers(quizAnswers)
-    const ranked = rankAptitudes(scores)
-    const topAptitude = ranked[0] ?? null
-    ;(async () => {
-      try {
-        await apiPost('/api/quiz-sessions/complete', {
-          userId: user.id,
-          quizId: quizIdForSave,
-          answers: quizAnswers,
-          scores,
-          topAptitude,
-        })
-        try {
-          sessionStorage.setItem(key, fingerprint)
-        } catch {
-          /* ignore */
-        }
-      } catch {
-        saveSentRef.current = false
-      }
-    })()
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- answersKey tracks quizAnswers
-  }, [hasQuizSignals, user?.id, user?.role, quizIdForSave, answersKey])
+  if (!view && !fetchErr) {
+    return (
+      <div className="p-12 text-center font-medium text-[#1A1A2E]/70">
+        Loading your results…
+      </div>
+    )
+  }
 
-  const handleShareWithParent = () => {}
+  if (fetchErr && !view) {
+    return (
+      <div className="mx-auto max-w-lg p-8 text-center">
+        <p className="text-rose-600">{fetchErr}</p>
+        <Link to="/child/quiz" className="mt-4 inline-block text-[#00D4FF]">
+          Back to quizzes
+        </Link>
+      </div>
+    )
+  }
 
   return (
     <div className="relative min-h-full overflow-hidden bg-gradient-to-b from-[#e8fbff] via-[#fff7fb] to-[#fff9e6] px-4 py-10 sm:px-6">
@@ -202,22 +256,47 @@ export function Results() {
           </p>
         </header>
 
+        <section className="rounded-[2rem] border-4 border-white/80 bg-white/80 p-4 shadow-lg shadow-[#1A1A2E]/10 backdrop-blur-sm sm:p-6">
+          <h2 className="text-center text-lg font-bold text-[#1A1A2E]">
+            All six strengths
+          </h2>
+          <div className="mt-4 h-[280px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <RadarChart data={radarData}>
+                <PolarGrid stroke="#1A1A2E33" />
+                <PolarAngleAxis
+                  dataKey="dimension"
+                  tick={{ fill: '#1A1A2E', fontSize: 11 }}
+                />
+                <Radar
+                  name="You"
+                  dataKey="value"
+                  stroke="#1A1A2E"
+                  fill="#00D4FF"
+                  fillOpacity={0.35}
+                />
+              </RadarChart>
+            </ResponsiveContainer>
+          </div>
+        </section>
+
         <section className="rounded-[2rem] border-4 border-white/80 bg-white/80 p-6 shadow-lg shadow-[#1A1A2E]/10 backdrop-blur-sm">
           <h2 className="text-center text-lg font-bold text-[#1A1A2E]">
-            All your strength stripes
+            Strength stripes
           </h2>
           <p className="mt-1 text-center text-sm text-[#1A1A2E]/60">
-            Taller stripes mean you picked more paths in that zone.
+            Taller bars show higher scores from your answers.
           </p>
           <ul className="mt-6 space-y-4">
             {aptitudeOrder.map((key) => {
-              const count = scores[key]
-              const widthPercent = Math.round((count / barScaleMax) * 100)
+              const val = Number(scores[key] ?? 0)
+              const widthPercent = Math.round((val / barScaleMax) * 100)
               const barClass = barColorsByType[key]
               return (
                 <li key={key} className="space-y-1">
                   <div className="flex items-center justify-between text-sm font-semibold text-[#1A1A2E]">
                     <span>{friendlyTypeLabels[key]}</span>
+                    <span>{val}%</span>
                   </div>
                   <div className="h-4 w-full overflow-hidden rounded-full bg-[#1A1A2E]/10">
                     <div
@@ -231,37 +310,42 @@ export function Results() {
           </ul>
         </section>
 
-        <section
-          className={`rounded-[2rem] border-4 border-dashed border-[#00D4FF]/45 bg-white/75 p-6 shadow-inner shadow-[#00D4FF]/10 ${!hasQuizSignals ? 'opacity-95' : ''}`}
-        >
+        <section className="rounded-[2rem] border-4 border-dashed border-[#00D4FF]/45 bg-white/75 p-6 shadow-inner shadow-[#00D4FF]/10">
           <h2 className="text-center text-lg font-bold text-[#1A1A2E]">
-            Three careers that might love your style
+            Three careers to dream about
           </h2>
           <p className="mt-1 text-center text-sm text-[#1A1A2E]/60">
-            Just a fun starter list to dream about.
+            A fun starter list — not a final answer.
           </p>
           <ul className="mt-5 grid gap-3 sm:grid-cols-3">
-            {(hasQuizSignals ? topCareers : sampleCareersByTopAptitude.creative).map(
-              (career) => (
-                <li
-                  key={career}
-                  className="rounded-2xl bg-gradient-to-br from-[#00D4FF]/15 to-fuchsia-200/40 px-4 py-4 text-center text-sm font-bold text-[#1A1A2E] shadow-sm"
-                >
-                  {career}
-                </li>
-              ),
-            )}
+            {topCareers.slice(0, 3).map((career, i) => (
+              <li
+                key={career}
+                className="rounded-2xl bg-gradient-to-br from-[#00D4FF]/15 to-fuchsia-200/40 px-4 py-4 text-center text-sm font-bold text-[#1A1A2E] shadow-sm"
+              >
+                <span className="mr-1 text-2xl" aria-hidden="true">
+                  {careerEmojis[i % careerEmojis.length]}
+                </span>
+                {career}
+              </li>
+            ))}
           </ul>
         </section>
 
-        <div className="flex justify-center pb-6">
+        <div className="flex flex-col items-center justify-center gap-4 pb-6 sm:flex-row">
           <button
             type="button"
-            onClick={handleShareWithParent}
+            onClick={() => void handleShareWithParent()}
             className="rounded-full bg-[#1A1A2E] px-8 py-4 text-base font-bold text-[#00D4FF] shadow-lg transition hover:bg-[#252542] hover:shadow-xl"
           >
-            Share with Parent
+            Show parent
           </button>
+          <Link
+            to="/child/quiz"
+            className="rounded-full border-2 border-[#1A1A2E]/20 bg-white px-8 py-4 text-base font-bold text-[#1A1A2E] shadow transition hover:border-[#00D4FF]/50"
+          >
+            Try another quiz
+          </Link>
         </div>
       </div>
     </div>

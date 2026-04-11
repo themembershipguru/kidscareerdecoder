@@ -1,11 +1,7 @@
 import { useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context'
-import { apiFetch } from '../../lib/api.js'
-
-function makeMockToken() {
-  return `mock.${globalThis.crypto?.randomUUID?.() ?? Date.now()}`
-}
+import { api, getApiError } from '../../utils/api.js'
 
 export function Login() {
   const { login, user, token } = useAuth()
@@ -38,17 +34,19 @@ export function Login() {
     }
     setSubmitting(true)
     try {
-      const row = await apiFetch(
-        `/api/users/by-email?email=${encodeURIComponent(email.trim())}`,
-      )
+      const { data } = await api.post('/auth/login', {
+        email: email.trim(),
+        password,
+      })
       login(
         {
-          id: row.id,
-          name: row.fullName,
-          role: row.role,
-          parentId: row.parentUserId ?? null,
+          id: data.user.id,
+          full_name: data.user.full_name,
+          name: data.user.full_name,
+          role: data.user.role,
+          email: data.user.email,
         },
-        makeMockToken(),
+        data.token,
       )
       const fromPath = location.state?.from?.pathname
       if (
@@ -60,13 +58,11 @@ export function Login() {
         return
       }
       navigate(
-        row.role === 'child' ? '/child/quiz' : '/parent/dashboard',
+        data.user.role === 'child' ? '/child/quiz' : '/parent/dashboard',
         { replace: true },
       )
-    } catch {
-      setFormError(
-        'No account found for that email. Register as a parent, or use the child sign-in email shown on the parent dashboard after adding a child.',
-      )
+    } catch (err) {
+      setFormError(getApiError(err))
     } finally {
       setSubmitting(false)
     }
@@ -79,9 +75,9 @@ export function Login() {
           Sign in
         </h1>
         <p className="mt-2 text-sm leading-relaxed text-[#1A1A2E]/65">
-          Sign in with the email you used to register, or the unique child
-          sign-in email from your parent dashboard. Password is not verified
-          yet—use any value until secure login is enabled.
+          Parents use the email and password from registration. Children use
+          the sign-in email from the parent dashboard and the initial password
+          shown when the parent added them.
         </p>
 
         <form onSubmit={handleSubmit} className="mt-8 space-y-5">

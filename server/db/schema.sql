@@ -1,5 +1,5 @@
--- Legacy SQLite reference (local-only). Production DB: Supabase (PostgreSQL).
--- Apply: supabase/migrations/20250404000000_initial_schema.sql
+-- SQLite-shaped reference only. Production schema lives in supabase/migrations/*.sql (PostgreSQL).
+-- The API uses DATABASE_URL + pg against that Postgres database.
 
 PRAGMA foreign_keys = ON;
 
