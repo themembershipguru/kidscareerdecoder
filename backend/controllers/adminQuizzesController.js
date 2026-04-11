@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid'
 import { getPool } from '../db/pool.js'
 import { nestQuestionsFromRows } from './quizController.js'
+import { labelQuestionDifficultiesOpenAI } from '../services/openaiDifficultyLabeler.js'
 
 const APTITUDE_TYPES = new Set([
   'logical',
@@ -477,6 +478,80 @@ export async function deleteAdminOption(req, res) {
     await pool.query(`DELETE FROM public.question_options WHERE id = $1`, [optionId])
     await pool.query(`UPDATE public.quizzes SET updated_at = now() WHERE id = $1`, [quizId])
     res.json(await loadQuizWithNested(pool, quizId))
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Server error' })
+  }
+}
+
+/** Batch-set questions.difficulty_level (1–5) using OpenAI; static DB quiz flow unchanged. */
+export async function labelQuizDifficultyWithOpenAI(req, res) {
+  try {
+    if (!process.env.OPENAI_API_KEY?.trim()) {
+      res.status(503).json({
+        error: 'OpenAI is not configured. Set OPENAI_API_KEY on the server.',
+      })
+      return
+    }
+    const quizId = String(req.params.id || '')
+    const pool = getPool()
+    const data = await loadQuizWithNested(pool, quizId)
+    if (!data?.quiz) {
+      res.status(404).json({ error: 'Quiz not found' })
+      return
+    }
+    const questions = data.quiz.questions ?? []
+    if (!questions.length) {
+      res.status(400).json({ error: 'Quiz has no questions' })
+      return
+    }
+    const contentCheck = await assertQuizHasContent(pool, quizId)
+    if (!contentCheck.ok) {
+      res.status(400).json({ error: contentCheck.error })
+      return
+    }
+
+    const labelMap = await labelQuestionDifficultiesOpenAI({
+      quizTitle: data.quiz.title,
+      quizDescription: data.quiz.description,
+      questions: questions.map((q) => ({
+        id: q.id,
+        body: q.body,
+        options: q.options ?? [],
+      })),
+    })
+
+    const applied = []
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+      for (const q of questions) {
+        const level = labelMap.get(q.id) ?? 3
+        const r = await client.query(
+          `UPDATE public.questions
+           SET difficulty_level = $1
+           WHERE id = $2 AND quiz_id = $3`,
+          [level, q.id, quizId],
+        )
+        if (r.rowCount === 1) {
+          applied.push({ question_id: q.id, difficulty_level: level })
+        }
+      }
+      await client.query(`UPDATE public.quizzes SET updated_at = now() WHERE id = $1`, [quizId])
+      await client.query('COMMIT')
+    } catch (e) {
+      await client.query('ROLLBACK')
+      throw e
+    } finally {
+      client.release()
+    }
+
+    const fresh = await loadQuizWithNested(pool, quizId)
+    res.json({
+      message: 'difficulty_level updated for all questions',
+      updated_count: applied.length,
+      labels: applied,
+      quiz: fresh.quiz,
+    })
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Server error' })
   }

@@ -29,6 +29,7 @@ import {
   createAdminOption,
   patchAdminOption,
   deleteAdminOption,
+  labelQuizDifficultyWithOpenAI,
 } from '../controllers/adminQuizzesController.js'
 
 const router = Router()
@@ -56,6 +57,7 @@ router.post('/quizzes', createAdminQuiz)
 router.get('/quizzes/:id', getAdminQuiz)
 router.patch('/quizzes/:id', patchAdminQuiz)
 router.delete('/quizzes/:id', deleteAdminQuiz)
+router.post('/quizzes/:id/label-difficulty-openai', labelQuizDifficultyWithOpenAI)
 
 router.post('/quizzes/:quizId/questions', createAdminQuestion)
 router.patch('/quizzes/:quizId/questions/:questionId', patchAdminQuestion)
