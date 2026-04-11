@@ -1,16 +1,34 @@
-# React + Vite
+# KidsCareer Decoder
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Full-stack aptitude quiz for kids: React (Vite) front end, Express API, and PostgreSQL via [Supabase](https://supabase.com).
 
-Currently, two official plugins are available:
+## Setup
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+1. **Install**
 
-## React Compiler
+   ```bash
+   npm install
+   ```
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+2. **Supabase** — In the Supabase SQL editor, run `supabase/migrations/20250404000000_initial_schema.sql`.
 
-## Expanding the ESLint configuration
+3. **Environment** — Copy `.env.example` to `.env` at the project root and set:
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+   - `SUPABASE_URL`
+   - `SUPABASE_SERVICE_ROLE_KEY` (service role, server only)
+
+4. **Run locally**
+
+   ```bash
+   npm run server   # API → http://localhost:3001
+   npm run dev      # App → http://localhost:5173 (proxies /api to the server)
+   ```
+
+## Stack
+
+- React 19, React Router, Tailwind CSS 4  
+- Express, `@supabase/supabase-js`, `dotenv`
+
+## License
+
+Private / coursework — adjust as needed.
