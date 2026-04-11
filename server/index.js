@@ -12,6 +12,7 @@ import quizRoutes from '../backend/routes/quiz.js'
 import sessionRoutes from '../backend/routes/session.js'
 import analyticsRoutes from '../backend/routes/analytics.js'
 import adminRoutes from '../backend/routes/admin.js'
+import { getEffectiveAiProvider } from '../backend/services/aiProviderSettings.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 dotenv.config({ path: path.join(__dirname, '..', '.env') })
@@ -36,10 +37,19 @@ app.get('/api/health', async (_req, res) => {
     const { rows } = await pool.query(
       'SELECT COUNT(*)::int AS n FROM public.quizzes',
     )
+    let effectiveAiProvider = null
+    try {
+      effectiveAiProvider = await getEffectiveAiProvider()
+    } catch {
+      /* ignore */
+    }
     res.json({
       ok: true,
       quizzes: rows[0]?.n ?? 0,
       jwtConfigured: Boolean(process.env.JWT_SECRET?.trim()),
+      effectiveAiProvider,
+      anthropicKeyPresent: Boolean(process.env.ANTHROPIC_API_KEY?.trim()),
+      openaiKeyPresent: Boolean(process.env.OPENAI_API_KEY?.trim()),
     })
   } catch (err) {
     res.status(500).json({

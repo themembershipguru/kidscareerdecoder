@@ -16,6 +16,12 @@ Full-stack aptitude quiz for kids: React (Vite) front end, Express API, and Post
    - `supabase/migrations/20250411120000_users_birth_year.sql`
    - `supabase/migrations/20250420120000_users_date_of_birth.sql` — **required** for “Add child” and age; without it you get `column "date_of_birth" does not exist`
    - `supabase/migrations/20260204120000_analytics_session_index.sql` (optional, performance)
+   - `supabase/migrations/20260404120000_admin_expansion_attribution_settings.sql` — **admin**: `users.attribution_json`, `quiz_sessions.attribution_json`, `app_settings` (AI provider override)
+   - `supabase/migrations/20260405120000_password_reset_tokens.sql` — **forgot password** reset tokens
+
+   **Bootstrap admin user (optional):** run `supabase/ensure_admin_account.sql` in the SQL editor to create or reset **`admin@kidscareerdecoder.com`** with password **`CHANGE_ME_ADMIN_PASSWORD`** (bcrypt via `pgcrypto`). Change the password after login or use **Forgot password** once SMTP is configured.
+
+   **Follow-ups (not implemented):** admin audit log, CSV export of users/sessions, careers CRUD in admin UI, `POST /admin/sessions/:id/regenerate-insights` to re-run AI from stored answers.
 
    **Quick fix** if only `date_of_birth` is missing — paste and run:
 
@@ -28,6 +34,8 @@ Full-stack aptitude quiz for kids: React (Vite) front end, Express API, and Post
 
    - `DATABASE_URL` — Postgres URI from Supabase **Project Settings → Database → Connection string** (URI tab). Uses the **database password**, not the REST API keys.
    - `JWT_SECRET` — Required for login (`/api/auth/login`). Set a long random string on Hostinger and locally or auth returns 500.
+   - `PUBLIC_APP_URL` — Public origin of the React app **without trailing slash** (e.g. `https://app.kidscareerdecoder.com`). Required for password-reset links in emails. Local dev: `http://localhost:5173`.
+   - **Brevo SMTP** (forgot password): `SMTP_HOST` (default `smtp-relay.brevo.com`), `SMTP_PORT` (`587`), `SMTP_USER` (Brevo account email), `SMTP_PASS` (Brevo SMTP key), `MAIL_FROM` (verified sender, e.g. `KidsCareer Decoder <noreply@yourdomain.com>`). If unset, `POST /api/auth/forgot-password` returns **503** with a clear message.
 
 4. **Usage** — Register a parent → **Add child** (copy the child’s sign-in email) → sign in as that child → complete the quiz → parent dashboard shows **live** sessions from the database.
 
@@ -40,7 +48,7 @@ Full-stack aptitude quiz for kids: React (Vite) front end, Express API, and Post
 
    Production (Hostinger / one Node process): `npm run build && npm start` serves **static `dist/`** plus **`/api/*`** including JWT auth (`/api/auth/login`), quizzes, sessions, analytics, and admin. Set **`DATABASE_URL`** and **`JWT_SECRET`** in the host env.
 
-   **Admin dashboard:** promote a user in Postgres (see `supabase/promote_user_to_admin.sql`), then sign in with that account — **`/admin`** shows users and recent sessions. Admins can still open the parent dashboard from the header.
+   **Admin dashboard:** promote a user in Postgres (see `supabase/promote_user_to_admin.sql`), then sign in — **`/admin`** tabs: **Overview**, **Insights** (aptitude mix, quiz completions, AI usage, UTM), **Users**, **Sessions**, **Quizzes** (create drafts, questions, options, publish), **APIs** (OpenAI / Claude env status + runtime provider), **Settings** (SMTP note + UTM table). API keys stay in server env only. **Admins** can open **Parent dashboard** and see **all** children (same API as parents; previously returned Forbidden before deploy).
 
 ## Hostinger (Node / Git deploy)
 
@@ -49,7 +57,7 @@ In the panel, set:
 - **Build command:** `npm run build`
 - **Start command:** `npm start` (runs root `server.js`, which loads `server/index.js`)
 - **Entry file:** If the panel asks for an entry point, use **`server.js`** (repo root) or leave default if it reads `package.json` → `"main": "server.js"`.
-- **Environment variables:** `DATABASE_URL`, `JWT_SECRET` (required for login), `PORT` if the host does not inject it
+- **Environment variables:** `DATABASE_URL`, `JWT_SECRET` (required for login), `PUBLIC_APP_URL`, Brevo SMTP vars for forgot-password, `PORT` if the host does not inject it
 
 Vite and Tailwind are in **dependencies** so `npm run build` still works if the platform skips devDependencies during install.
 

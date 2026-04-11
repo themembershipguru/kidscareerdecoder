@@ -12,6 +12,32 @@ function generateInitialChildPassword() {
   return `Kcd${raw}1!`
 }
 
+/** @param {Record<string, unknown> | null | undefined} body */
+function buildAttributionFromBody(body) {
+  if (!body || typeof body !== 'object') return null
+  const fromNested =
+    body.attribution && typeof body.attribution === 'object' && !Array.isArray(body.attribution)
+      ? body.attribution
+      : body
+  const keys = [
+    'utm_source',
+    'utm_medium',
+    'utm_campaign',
+    'utm_content',
+    'utm_term',
+    'referrer',
+    'landing_path',
+  ]
+  const out = {}
+  for (const k of keys) {
+    const v = fromNested[k]
+    if (v != null && String(v).trim()) {
+      out[k] = String(v).trim().slice(0, 500)
+    }
+  }
+  return Object.keys(out).length ? out : null
+}
+
 export async function registerParent(req, res) {
   try {
     const { full_name: fullName, email, password } = req.body
@@ -32,10 +58,19 @@ export async function registerParent(req, res) {
     const id = uuidv4()
     const passwordHash = await bcrypt.hash(String(password), 10)
     const now = new Date().toISOString()
+    const attribution = buildAttributionFromBody(req.body)
     await pool.query(
-      `INSERT INTO public.users (id, email, password_hash, full_name, role, parent_user_id, updated_at)
-       VALUES ($1, $2::citext, $3, $4, 'parent', NULL, $5::timestamptz)`,
-      [id, normalizedEmail, passwordHash, String(fullName).trim(), now],
+      `INSERT INTO public.users (
+         id, email, password_hash, full_name, role, parent_user_id, updated_at, attribution_json
+       ) VALUES ($1, $2::citext, $3, $4, 'parent', NULL, $5::timestamptz, $6::jsonb)`,
+      [
+        id,
+        normalizedEmail,
+        passwordHash,
+        String(fullName).trim(),
+        now,
+        attribution ? JSON.stringify(attribution) : null,
+      ],
     )
     res.status(201).json({ message: 'Registration successful' })
   } catch (err) {
@@ -161,13 +196,20 @@ export async function addChild(req, res) {
 export async function getChildren(req, res) {
   try {
     const pool = getPool()
-    const { rows } = await pool.query(
-      `SELECT id, full_name, role, email::text AS email, parent_user_id, birth_year, date_of_birth, created_at
-       FROM public.users
-       WHERE parent_user_id = $1 AND role = 'child'
-       ORDER BY created_at ASC`,
-      [req.user.id],
-    )
+    const sql =
+      req.user.role === 'admin'
+        ? `SELECT id, full_name, role, email::text AS email, parent_user_id, birth_year, date_of_birth, created_at
+           FROM public.users
+           WHERE role = 'child'
+           ORDER BY created_at ASC`
+        : `SELECT id, full_name, role, email::text AS email, parent_user_id, birth_year, date_of_birth, created_at
+           FROM public.users
+           WHERE parent_user_id = $1 AND role = 'child'
+           ORDER BY created_at ASC`
+    const { rows } =
+      req.user.role === 'admin'
+        ? await pool.query(sql)
+        : await pool.query(sql, [req.user.id])
     res.json(rows)
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Server error' })

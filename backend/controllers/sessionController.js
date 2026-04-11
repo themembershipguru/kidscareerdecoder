@@ -110,10 +110,11 @@ export async function startSession(req, res) {
       return
     }
     const sessionId = uuidv4()
+    const sessionAttr = buildSessionAttribution(req.body)
     await pool.query(
-      `INSERT INTO public.quiz_sessions (id, quiz_id, user_id, status)
-       VALUES ($1, $2, $3, 'in_progress')`,
-      [sessionId, quizId, userId],
+      `INSERT INTO public.quiz_sessions (id, quiz_id, user_id, status, attribution_json)
+       VALUES ($1, $2, $3, 'in_progress', $4::jsonb)`,
+      [sessionId, quizId, userId, sessionAttr ? JSON.stringify(sessionAttr) : null],
     )
     res.status(201).json({ session_id: sessionId })
   } catch (err) {
@@ -231,6 +232,31 @@ function normalizeCountsToScores(counts, total) {
     out[t] = Math.round(pct * 100) / 100
   }
   return out
+}
+
+function buildSessionAttribution(body) {
+  if (!body || typeof body !== 'object') return null
+  const fromNested =
+    body.attribution && typeof body.attribution === 'object' && !Array.isArray(body.attribution)
+      ? body.attribution
+      : body
+  const keys = [
+    'utm_source',
+    'utm_medium',
+    'utm_campaign',
+    'utm_content',
+    'utm_term',
+    'referrer',
+    'landing_path',
+  ]
+  const out = {}
+  for (const k of keys) {
+    const v = fromNested[k]
+    if (v != null && String(v).trim()) {
+      out[k] = String(v).trim().slice(0, 500)
+    }
+  }
+  return Object.keys(out).length ? out : null
 }
 
 function toProfilerPayload(scoresObj) {

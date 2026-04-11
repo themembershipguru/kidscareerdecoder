@@ -11,6 +11,19 @@ async function assertParentOwnsChild(parentId, childId) {
   return { ok: true }
 }
 
+async function assertAdminOrParentOwnsChild(req, childId) {
+  if (req.user.role === 'admin') {
+    const pool = getPool()
+    const { rows } = await pool.query(
+      `SELECT id FROM public.users WHERE id = $1 AND role = 'child' LIMIT 1`,
+      [childId],
+    )
+    if (!rows.length) return { ok: false, error: 'Child not found' }
+    return { ok: true }
+  }
+  return assertParentOwnsChild(req.user.id, childId)
+}
+
 function ageFromDob(dobStr, birthYear) {
   const normalized =
     dobStr instanceof Date ? dobStr.toISOString().slice(0, 10) : dobStr != null ? String(dobStr).slice(0, 10) : null
@@ -37,13 +50,20 @@ function metaProfile(row) {
 export async function listChildrenSummary(req, res) {
   try {
     const pool = getPool()
-    const { rows: children } = await pool.query(
-      `SELECT id, full_name, date_of_birth, birth_year
-       FROM public.users
-       WHERE parent_user_id = $1 AND role = 'child'
-       ORDER BY created_at ASC`,
-      [req.user.id],
-    )
+    const childrenQuery =
+      req.user.role === 'admin'
+        ? `SELECT id, full_name, date_of_birth, birth_year
+           FROM public.users
+           WHERE role = 'child'
+           ORDER BY created_at ASC`
+        : `SELECT id, full_name, date_of_birth, birth_year
+           FROM public.users
+           WHERE parent_user_id = $1 AND role = 'child'
+           ORDER BY created_at ASC`
+    const { rows: children } =
+      req.user.role === 'admin'
+        ? await pool.query(childrenQuery)
+        : await pool.query(childrenQuery, [req.user.id])
     const rows = []
     for (const c of children) {
       const cntRes = await pool.query(
@@ -78,9 +98,10 @@ export async function listChildrenSummary(req, res) {
 export async function getChildAnalytics(req, res) {
   try {
     const childId = String(req.params.childId || '')
-    const ok = await assertParentOwnsChild(req.user.id, childId)
+    const ok = await assertAdminOrParentOwnsChild(req, childId)
     if (!ok.ok) {
-      res.status(403).json({ error: ok.error })
+      const status = ok.error === 'Child not found' ? 404 : 403
+      res.status(status).json({ error: ok.error })
       return
     }
     const pool = getPool()

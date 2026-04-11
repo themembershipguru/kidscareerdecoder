@@ -5,13 +5,19 @@ import {
   addChild,
   getChildren,
 } from '../controllers/authController.js'
-import { verifyToken, requireRole } from '../middleware/auth.js'
+import {
+  requestPasswordReset,
+  resetPasswordWithToken,
+} from '../controllers/passwordResetController.js'
+import { verifyToken, requireAnyRole } from '../middleware/auth.js'
 
 const router = Router()
 
 router.post('/register', registerParent)
 router.post('/login', loginParent)
-router.post('/add-child', verifyToken, requireRole('parent'), addChild)
-router.get('/children', verifyToken, requireRole('parent'), getChildren)
+router.post('/forgot-password', requestPasswordReset)
+router.post('/reset-password', resetPasswordWithToken)
+router.post('/add-child', verifyToken, requireAnyRole(['parent', 'admin']), addChild)
+router.get('/children', verifyToken, requireAnyRole(['parent', 'admin']), getChildren)
 
 export default router

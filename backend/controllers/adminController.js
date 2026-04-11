@@ -27,6 +27,7 @@ export async function getAdminSummary(req, res) {
                 qs.started_at,
                 qs.top_aptitude,
                 qs.status,
+                (qs.metadata_json->>'ai_provider') AS ai_provider,
                 u.full_name AS child_name,
                 u.email::text AS child_email,
                 q.title AS quiz_title,
@@ -38,7 +39,7 @@ export async function getAdminSummary(req, res) {
          LIMIT 40`,
       ),
       pool.query(
-        `SELECT id, email::text AS email, full_name, role, parent_user_id, created_at
+        `SELECT id, email::text AS email, full_name, role, parent_user_id, created_at, attribution_json
          FROM public.users
          ORDER BY created_at DESC
          LIMIT 80`,

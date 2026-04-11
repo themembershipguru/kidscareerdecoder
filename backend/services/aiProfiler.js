@@ -1,6 +1,7 @@
 import axios from 'axios'
 import { getProfile as getClaudeProfile } from './claudeProfiler.js'
 import { getProfile as getOpenaiProfile } from './openaiProfiler.js'
+import { getEffectiveAiProvider } from './aiProviderSettings.js'
 
 const aptitudeOrder = [
   'logical',
@@ -37,7 +38,11 @@ function buildFallbackFromScores(scoresPct) {
 }
 
 export async function getAptitudeProfile(scores, age) {
-  const AI_PROVIDER = process.env.AI_PROVIDER || 'claude'
+  const AI_PROVIDER = await getEffectiveAiProvider()
+  if (AI_PROVIDER === 'fallback_only') {
+    const fb = buildFallbackFromScores(scores)
+    return { ...fb, ai_provider: 'fallback_only' }
+  }
   const payload = {
     logical_pct: scores.logical_pct,
     creative_pct: scores.creative_pct,
@@ -67,6 +72,7 @@ export async function getAptitudeProfile(scores, age) {
     }
     return { ...result, ai_provider: AI_PROVIDER }
   } catch {
-    return buildFallbackFromScores(scores)
+    const fb = buildFallbackFromScores(scores)
+    return { ...fb, ai_provider: 'fallback' }
   }
 }

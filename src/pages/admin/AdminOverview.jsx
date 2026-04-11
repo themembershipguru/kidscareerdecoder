@@ -9,7 +9,7 @@ function formatWhen(iso) {
   return d.toLocaleString()
 }
 
-export function AdminDashboard() {
+export function AdminOverview() {
   const [data, setData] = useState(null)
   const [loadState, setLoadState] = useState('loading')
   const [error, setError] = useState('')
@@ -49,14 +49,11 @@ export function AdminDashboard() {
   }
 
   return (
-    <div className="min-h-full bg-slate-100 px-4 py-10 sm:px-6">
-      <div className="mx-auto max-w-6xl">
+    <div className="px-4 py-10 sm:px-6 lg:px-10">
+      <div className="mx-auto max-w-7xl">
         <div className="flex flex-wrap items-end justify-between gap-4 border-b border-slate-200 pb-6">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-violet-600">
-              Admin
-            </p>
-            <h1 className="mt-2 text-3xl font-extrabold text-slate-900">
+            <h1 className="text-3xl font-extrabold text-slate-900">
               Platform overview
             </h1>
             <p className="mt-1 text-slate-600">
@@ -111,10 +108,62 @@ export function AdminDashboard() {
               ))}
             </div>
 
+            <div className="mt-8 grid gap-4 md:grid-cols-3">
+              <div className="rounded-2xl border border-sky-200 bg-sky-50/80 p-5">
+                <h3 className="font-bold text-slate-900">Add or edit quizzes</h3>
+                <p className="mt-2 text-sm text-slate-600">
+                  Open <strong>Quizzes</strong>, type a title, click{' '}
+                  <strong>Create draft</strong>, then add questions and answer
+                  options. Turn on <strong>Published</strong> when each question
+                  has at least one option.
+                </p>
+                <Link
+                  to="/admin/quizzes"
+                  className="mt-3 inline-block text-sm font-bold text-sky-700 hover:underline"
+                >
+                  Go to Quizzes →
+                </Link>
+              </div>
+              <div className="rounded-2xl border border-violet-200 bg-violet-50/80 p-5">
+                <h3 className="font-bold text-slate-900">Insights</h3>
+                <p className="mt-2 text-sm text-slate-600">
+                  Aptitude distribution, completions per quiz, AI provider usage,
+                  and UTM signups.
+                </p>
+                <Link
+                  to="/admin/insights"
+                  className="mt-3 inline-block text-sm font-bold text-violet-800 hover:underline"
+                >
+                  Open Insights →
+                </Link>
+              </div>
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50/80 p-5">
+                <h3 className="font-bold text-slate-900">OpenAI &amp; Claude</h3>
+                <p className="mt-2 text-sm text-slate-600">
+                  Set API keys on the server, then choose the runtime provider
+                  (or use database override).
+                </p>
+                <Link
+                  to="/admin/apis"
+                  className="mt-3 inline-block text-sm font-bold text-emerald-800 hover:underline"
+                >
+                  APIs &amp; AI →
+                </Link>
+              </div>
+            </div>
+
             <section className="mt-10">
-              <h2 className="text-lg font-bold text-slate-900">
-                Recent completed sessions
-              </h2>
+              <div className="flex items-center justify-between gap-4">
+                <h2 className="text-lg font-bold text-slate-900">
+                  Recent completed sessions
+                </h2>
+                <Link
+                  to="/admin/sessions"
+                  className="text-sm font-semibold text-sky-600 hover:underline"
+                >
+                  View all
+                </Link>
+              </div>
               <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
                 <table className="min-w-full text-left text-sm">
                   <thead className="border-b border-slate-200 bg-slate-50">
@@ -122,16 +171,15 @@ export function AdminDashboard() {
                       <th className="px-4 py-3 font-bold text-slate-700">When</th>
                       <th className="px-4 py-3 font-bold text-slate-700">Child</th>
                       <th className="px-4 py-3 font-bold text-slate-700">Quiz</th>
-                      <th className="px-4 py-3 font-bold text-slate-700">
-                        Top aptitude
-                      </th>
+                      <th className="px-4 py-3 font-bold text-slate-700">Top</th>
+                      <th className="px-4 py-3 font-bold text-slate-700">AI</th>
                     </tr>
                   </thead>
                   <tbody>
                     {(data.recentSessions ?? []).length === 0 ? (
                       <tr>
                         <td
-                          colSpan={4}
+                          colSpan={5}
                           className="px-4 py-6 text-center text-slate-500"
                         >
                           No completed sessions yet.
@@ -144,7 +192,12 @@ export function AdminDashboard() {
                           className="border-b border-slate-100"
                         >
                           <td className="px-4 py-3 text-slate-800">
-                            {formatWhen(s.completed_at)}
+                            <Link
+                              to={`/admin/sessions/${s.session_id}`}
+                              className="font-medium text-sky-700 hover:underline"
+                            >
+                              {formatWhen(s.completed_at)}
+                            </Link>
                           </td>
                           <td className="px-4 py-3 text-slate-800">
                             <span className="font-medium">{s.child_name}</span>
@@ -158,6 +211,9 @@ export function AdminDashboard() {
                           <td className="px-4 py-3 font-medium text-slate-900">
                             {s.top_aptitude ?? '—'}
                           </td>
+                          <td className="px-4 py-3 text-slate-600">
+                            {s.ai_provider ?? '—'}
+                          </td>
                         </tr>
                       ))
                     )}
@@ -167,7 +223,15 @@ export function AdminDashboard() {
             </section>
 
             <section className="mt-10">
-              <h2 className="text-lg font-bold text-slate-900">Recent users</h2>
+              <div className="flex items-center justify-between gap-4">
+                <h2 className="text-lg font-bold text-slate-900">Recent users</h2>
+                <Link
+                  to="/admin/users"
+                  className="text-sm font-semibold text-sky-600 hover:underline"
+                >
+                  View all
+                </Link>
+              </div>
               <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
                 <table className="min-w-full text-left text-sm">
                   <thead className="border-b border-slate-200 bg-slate-50">
@@ -180,15 +244,17 @@ export function AdminDashboard() {
                   </thead>
                   <tbody>
                     {(data.recentUsers ?? []).map((u) => (
-                      <tr
-                        key={u.id}
-                        className="border-b border-slate-100"
-                      >
+                      <tr key={u.id} className="border-b border-slate-100">
                         <td className="px-4 py-3 text-slate-600">
                           {formatWhen(u.created_at)}
                         </td>
                         <td className="px-4 py-3 font-medium text-slate-900">
-                          {u.full_name}
+                          <Link
+                            to={`/admin/users/${u.id}`}
+                            className="text-sky-700 hover:underline"
+                          >
+                            {u.full_name}
+                          </Link>
                         </td>
                         <td className="break-all px-4 py-3 text-slate-700">
                           {u.email}

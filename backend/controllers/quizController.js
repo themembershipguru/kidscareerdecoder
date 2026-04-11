@@ -1,6 +1,6 @@
 import { getPool } from '../db/pool.js'
 
-function nestQuestionsFromRows(quizRow, qRows, optRows) {
+export function nestQuestionsFromRows(quizRow, qRows, optRows) {
   const byQ = new Map()
   for (const r of qRows) {
     byQ.set(r.id, {

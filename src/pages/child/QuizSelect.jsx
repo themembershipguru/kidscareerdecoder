@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context'
 import { api, getApiError } from '../../utils/api.js'
+import { buildAttributionPayload } from '../../utils/attribution.js'
 
 export function QuizSelect() {
   const { user } = useAuth()
@@ -34,9 +35,11 @@ export function QuizSelect() {
   async function startQuiz(q) {
     if (!user?.id) return
     try {
+      const attribution = buildAttributionPayload()
       const { data } = await api.post('/session/start', {
         quiz_id: q.id,
         user_id: user.id,
+        ...(attribution ? { attribution } : {}),
       })
       navigate(`/child/quiz/${q.slug}`, {
         state: { sessionId: data.session_id },

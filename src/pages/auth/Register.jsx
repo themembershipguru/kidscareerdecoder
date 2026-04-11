@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context'
 import { api, getApiError } from '../../utils/api.js'
+import { buildAttributionPayload } from '../../utils/attribution.js'
 
 export function Register() {
   const { login, user, token } = useAuth()
@@ -39,10 +40,12 @@ export function Register() {
     }
     setSubmitting(true)
     try {
+      const attribution = buildAttributionPayload()
       await api.post('/auth/register', {
         full_name: fullName.trim(),
         email: email.trim(),
         password,
+        ...(attribution ? { attribution } : {}),
       })
       const { data } = await api.post('/auth/login', {
         email: email.trim(),

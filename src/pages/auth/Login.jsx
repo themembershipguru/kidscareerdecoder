@@ -120,6 +120,14 @@ export function Login() {
               className="mt-1.5 w-full rounded-lg border border-[#1A1A2E]/15 bg-slate-50 px-3 py-2.5 text-[#1A1A2E] outline-none ring-[#00D4FF]/0 transition focus:border-[#00D4FF]/50 focus:ring-2 focus:ring-[#00D4FF]/25"
               placeholder="••••••••"
             />
+            <div className="mt-2 text-right">
+              <Link
+                to="/forgot-password"
+                className="text-sm font-semibold text-[#00D4FF] underline-offset-2 hover:underline"
+              >
+                Forgot password?
+              </Link>
+            </div>
           </div>
 
           {formError && (
