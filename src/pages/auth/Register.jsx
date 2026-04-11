@@ -14,7 +14,8 @@ export function Register() {
   const [submitting, setSubmitting] = useState(false)
 
   if (user && token) {
-    return <Navigate to="/parent/dashboard" replace />
+    const home = user.role === 'admin' ? '/admin' : '/parent/dashboard'
+    return <Navigate to={home} replace />
   }
 
   const handleSubmit = async (event) => {

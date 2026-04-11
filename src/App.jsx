@@ -12,9 +12,11 @@ import { ParentDashboard } from './pages/parent/ParentDashboard.jsx'
 import { QuizSelect } from './pages/child/QuizSelect.jsx'
 import { TakeQuiz } from './pages/child/TakeQuiz.jsx'
 import { Results } from './pages/child/Results.jsx'
+import { AdminDashboard } from './pages/admin/AdminDashboard.jsx'
 
 const parentAllowedRoles = ['parent', 'admin']
 const childAllowedRoles = ['child']
+const adminAllowedRoles = ['admin']
 
 function RootRedirect() {
   const { token, user } = useAuth()
@@ -24,7 +26,10 @@ function RootRedirect() {
   if (user.role === 'child') {
     return <Navigate to="/child/quiz" replace />
   }
-  if (user.role === 'parent' || user.role === 'admin') {
+  if (user.role === 'admin') {
+    return <Navigate to="/admin" replace />
+  }
+  if (user.role === 'parent') {
     return <Navigate to="/parent/dashboard" replace />
   }
   return <Navigate to="/login" replace />
@@ -36,6 +41,14 @@ function AppRoutes() {
       <Route path="/" element={<RootRedirect />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
+      <Route
+        path="/admin"
+        element={
+          <PrivateRoute allowedRoles={adminAllowedRoles}>
+            <AdminDashboard />
+          </PrivateRoute>
+        }
+      />
       <Route
         path="/parent/dashboard"
         element={

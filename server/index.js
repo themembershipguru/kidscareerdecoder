@@ -7,6 +7,11 @@ import cors from 'cors'
 import express from 'express'
 import { getPool } from './lib/db.js'
 import { registerParentApi } from './parentApi.js'
+import authRoutes from '../backend/routes/auth.js'
+import quizRoutes from '../backend/routes/quiz.js'
+import sessionRoutes from '../backend/routes/session.js'
+import analyticsRoutes from '../backend/routes/analytics.js'
+import adminRoutes from '../backend/routes/admin.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 dotenv.config({ path: path.join(__dirname, '..', '.env') })
@@ -19,13 +24,23 @@ app.use(express.json())
 
 registerParentApi(app)
 
+app.use('/api/auth', authRoutes)
+app.use('/api/quiz', quizRoutes)
+app.use('/api/session', sessionRoutes)
+app.use('/api/analytics', analyticsRoutes)
+app.use('/api/admin', adminRoutes)
+
 app.get('/api/health', async (_req, res) => {
   try {
     const pool = getPool()
     const { rows } = await pool.query(
       'SELECT COUNT(*)::int AS n FROM public.quizzes',
     )
-    res.json({ ok: true, quizzes: rows[0]?.n ?? 0 })
+    res.json({
+      ok: true,
+      quizzes: rows[0]?.n ?? 0,
+      jwtConfigured: Boolean(process.env.JWT_SECRET?.trim()),
+    })
   } catch (err) {
     res.status(500).json({
       ok: false,

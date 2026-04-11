@@ -14,13 +14,15 @@ export function Header() {
   }
 
   const isLoggedIn = Boolean(user && token)
+  const isAdmin = isLoggedIn && user.role === 'admin'
   const isParentLike =
     isLoggedIn && (user.role === 'parent' || user.role === 'admin')
   const isChild = isLoggedIn && user.role === 'child'
   const displayName = user?.full_name || user?.name || 'there'
 
   let logoTo = '/'
-  if (isParentLike) logoTo = '/parent/dashboard'
+  if (isAdmin) logoTo = '/admin'
+  else if (isParentLike) logoTo = '/parent/dashboard'
   if (isChild) logoTo = '/child/quiz'
 
   const linkBaseClass =
@@ -83,6 +85,15 @@ export function Header() {
 
           {isParentLike && (
             <>
+              {isAdmin && (
+                <Link
+                  to="/admin"
+                  className={linkBaseClass}
+                  onClick={() => setMenuOpen(false)}
+                >
+                  Admin
+                </Link>
+              )}
               <Link
                 to="/parent/dashboard"
                 className={linkBaseClass}

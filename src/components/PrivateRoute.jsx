@@ -3,7 +3,8 @@ import { useAuth } from '../context'
 
 function getHomePathForRole(role) {
   if (role === 'child') return '/child/quiz'
-  if (role === 'parent' || role === 'admin') return '/parent/dashboard'
+  if (role === 'admin') return '/admin'
+  if (role === 'parent') return '/parent/dashboard'
   return '/login'
 }
 

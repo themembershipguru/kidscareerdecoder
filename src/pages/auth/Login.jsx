@@ -13,12 +13,13 @@ export function Login() {
   const [submitting, setSubmitting] = useState(false)
 
   if (user && token) {
-    return (
-      <Navigate
-        to={user.role === 'child' ? '/child/quiz' : '/parent/dashboard'}
-        replace
-      />
-    )
+    const home =
+      user.role === 'child'
+        ? '/child/quiz'
+        : user.role === 'admin'
+          ? '/admin'
+          : '/parent/dashboard'
+    return <Navigate to={home} replace />
   }
 
   const handleSubmit = async (event) => {
@@ -57,10 +58,13 @@ export function Login() {
         navigate(fromPath, { replace: true })
         return
       }
-      navigate(
-        data.user.role === 'child' ? '/child/quiz' : '/parent/dashboard',
-        { replace: true },
-      )
+      const home =
+        data.user.role === 'child'
+          ? '/child/quiz'
+          : data.user.role === 'admin'
+            ? '/admin'
+            : '/parent/dashboard'
+      navigate(home, { replace: true })
     } catch (err) {
       setFormError(getApiError(err))
     } finally {
