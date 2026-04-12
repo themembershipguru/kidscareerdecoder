@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid'
 import { getPool } from '../db/pool.js'
 import { getAptitudeProfile } from '../services/aiProfiler.js'
+import { fetchCountryFromIpinfo, getClientIpFromRequest } from '../services/ipinfoCountry.js'
 import {
   adjustAbility,
   normalizeQuizDefault,
@@ -26,6 +27,53 @@ async function loadUser(userId) {
   const data = rows[0]
   if (!data) return { error: 'User not found' }
   return { user: data }
+}
+
+async function resolveCountryForProfiler(req, childUserId, pool) {
+  const fromBody = req.body?.country
+  if (typeof fromBody === 'string' && fromBody.trim()) {
+    return fromBody.trim().slice(0, 80)
+  }
+  const clientIp = getClientIpFromRequest(req)
+  const fromIpinfo = await fetchCountryFromIpinfo(clientIp)
+  if (fromIpinfo) return fromIpinfo.slice(0, 80)
+  const h =
+    req.headers['cf-ipcountry'] ||
+    req.headers['CF-IPCountry'] ||
+    req.headers['x-vercel-ip-country']
+  if (typeof h === 'string' && h.trim() && h.trim().toUpperCase() !== 'XX') {
+    const code = h.trim().toUpperCase()
+    if (code === 'US' || code === 'USA') return 'United States'
+    if (code === 'IN') return 'India'
+    return code.slice(0, 80)
+  }
+  try {
+    const { rows } = await pool.query(
+      `SELECT u.country AS child_c, p.country AS parent_c
+       FROM public.users u
+       LEFT JOIN public.users p ON p.id = u.parent_user_id
+       WHERE u.id = $1 LIMIT 1`,
+      [childUserId],
+    )
+    const r = rows[0]
+    const db = r?.child_c || r?.parent_c
+    if (typeof db === 'string' && db.trim()) return db.trim().slice(0, 80)
+  } catch {
+    /* country column may be missing before migration */
+  }
+  return 'India'
+}
+
+function normalizeCareerEntry(c) {
+  if (typeof c === 'string') {
+    return { title: c, salary: '', pathway: '', match_reason: '' }
+  }
+  return {
+    title: String(c?.title ?? ''),
+    salary: String(c?.salary ?? ''),
+    pathway: String(c?.pathway ?? ''),
+    match_reason: String(c?.match_reason ?? ''),
+  }
 }
 
 async function assertCanActForChild(parentId, childId) {
@@ -560,12 +608,11 @@ export async function completeSession(req, res) {
     const profilerScores = toProfilerPayload(scores)
     const u = await loadUser(session.user_id)
     const age = u.user ? computeAgeFromDob(u.user.date_of_birth, u.user.birth_year) : 10
-    const aiResult = await getAptitudeProfile(profilerScores, age)
+    const country = await resolveCountryForProfiler(req, session.user_id, pool)
+    const aiResult = await getAptitudeProfile(profilerScores, age, country)
     let careersList = []
     if (Array.isArray(aiResult.careers) && aiResult.careers.length > 0) {
-      careersList = aiResult.careers.map((c) =>
-        typeof c === 'string' ? { title: c } : { title: String(c?.title ?? c) },
-      )
+      careersList = aiResult.careers.map((c) => normalizeCareerEntry(c))
     } else {
       const { careers, error: ce } = await fetchCareersForAptitude(topAptitude)
       if (ce) {
@@ -576,6 +623,9 @@ export async function completeSession(req, res) {
         id: r.id,
         title: r.title,
         aptitude_type: r.aptitude_type,
+        salary: '',
+        pathway: '',
+        match_reason: '',
       }))
     }
     let adaptiveOut = null
@@ -590,6 +640,8 @@ export async function completeSession(req, res) {
       profile: aiResult.profile,
       explanation: aiResult.explanation,
       top_strength: aiResult.top_strength,
+      careers: careersList,
+      country,
     }
     if (!adaptiveOut) {
       delete metadataJson.adaptive

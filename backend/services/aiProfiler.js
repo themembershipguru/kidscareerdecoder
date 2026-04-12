@@ -37,7 +37,7 @@ function buildFallbackFromScores(scoresPct) {
   }
 }
 
-export async function getAptitudeProfile(scores, age) {
+export async function getAptitudeProfile(scores, age, country = 'India') {
   const AI_PROVIDER = await getEffectiveAiProvider()
   if (AI_PROVIDER === 'fallback_only') {
     const fb = buildFallbackFromScores(scores)
@@ -51,13 +51,14 @@ export async function getAptitudeProfile(scores, age) {
     scientific_pct: scores.scientific_pct,
     practical_pct: scores.practical_pct,
     age,
+    country,
   }
   try {
     let result
     if (AI_PROVIDER === 'claude') {
-      result = await getClaudeProfile(payload, age)
+      result = await getClaudeProfile(payload, age, country)
     } else if (AI_PROVIDER === 'openai') {
-      result = await getOpenaiProfile(payload, age)
+      result = await getOpenaiProfile(payload, age, country)
     } else if (AI_PROVIDER === 'random_forest') {
       const base = (process.env.ML_SERVICE_URL || 'http://localhost:5001').replace(/\/$/, '')
       const { data } = await axios.post(`${base}/predict`, payload, { timeout: 30000 })

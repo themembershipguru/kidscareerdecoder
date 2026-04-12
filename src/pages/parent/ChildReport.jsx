@@ -14,6 +14,7 @@ import {
   Radar,
   RadarChart,
 } from 'recharts'
+import { CareerResultCard } from '../../components/CareerResultCard.jsx'
 import { api, getApiError } from '../../utils/api.js'
 import { labelForAptitudeKey } from '../../lib/aptitudeLabels.js'
 import { aptitudeOrder } from '../../lib/quizScoring.js'
@@ -250,24 +251,23 @@ export function ChildReport() {
               </div>
             </section>
 
-            <section className="mt-8">
-              <h2 className="text-lg font-bold text-slate-900">
-                Career ideas (latest top aptitude)
-              </h2>
-              <ul className="mt-4 grid gap-3 sm:grid-cols-2">
-                {careers.map((c) => (
-                  <li
-                    key={c.id}
-                    className="rounded-xl border-l-4 border-cyan-500 bg-white p-4 shadow-sm"
-                  >
-                    <p className="font-bold text-slate-900">{c.title}</p>
-                    <p className="text-xs uppercase tracking-wide text-slate-500">
-                      {labelForAptitudeKey(c.aptitude_type)}
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            </section>
+            {careers.length > 0 ? (
+              <section className="mt-8">
+                <h2 className="text-lg font-bold text-slate-900">
+                  Career ideas (latest session)
+                </h2>
+                <ul className="mt-4 grid gap-4 sm:grid-cols-1 lg:grid-cols-2">
+                  {careers.map((c, i) => (
+                    <CareerResultCard
+                      key={c.id ?? `career-${i}`}
+                      career={c}
+                      index={i}
+                      variant="parent"
+                    />
+                  ))}
+                </ul>
+              </section>
+            ) : null}
 
             <section className="mt-8 overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
               <table className="min-w-full text-left text-sm">

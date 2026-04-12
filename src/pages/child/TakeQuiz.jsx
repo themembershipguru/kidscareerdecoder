@@ -15,6 +15,18 @@ function pickCheer() {
   return CHEERS[Math.floor(Math.random() * CHEERS.length)]
 }
 
+function detectClientCountry() {
+  if (typeof localStorage !== 'undefined') {
+    const saved = localStorage.getItem('kidsCareerCountry')
+    if (saved && String(saved).trim()) return String(saved).trim().slice(0, 80)
+  }
+  if (typeof navigator === 'undefined') return 'India'
+  const lang = navigator.language || ''
+  if (/^en-IN\b/i.test(lang) || /^hi/i.test(lang)) return 'India'
+  if (/^en-US\b/i.test(lang)) return 'United States'
+  return 'India'
+}
+
 export function TakeQuiz() {
   const { slug } = useParams()
   const location = useLocation()
@@ -77,6 +89,7 @@ export function TakeQuiz() {
           try {
             const { data: completeData } = await api.post(
               `/session/${encodeURIComponent(sessionId)}/complete`,
+              { country: detectClientCountry() },
             )
             navigate(`/child/results/${sessionId}`, {
               replace: true,
@@ -141,7 +154,9 @@ export function TakeQuiz() {
       }
 
       try {
-        const { data } = await api.post(`/session/${sessionId}/complete`)
+        const { data } = await api.post(`/session/${sessionId}/complete`, {
+          country: detectClientCountry(),
+        })
         navigate(`/child/results/${sessionId}`, {
           replace: true,
           state: { result: data },
@@ -242,6 +257,7 @@ export function TakeQuiz() {
           setTotalQuestions(Number(data?.total_questions) || 0)
           const { data: completeData } = await api.post(
             `/session/${encodeURIComponent(sessionId)}/complete`,
+            { country: detectClientCountry() },
           )
           navigate(`/child/results/${sessionId}`, {
             replace: true,

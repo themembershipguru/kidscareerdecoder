@@ -124,14 +124,38 @@ export async function getChildAnalytics(req, res) {
     const list = sRes.rows
     const last = list.length ? list[list.length - 1] : null
     const topForCareers = last?.top_aptitude
+    const lastMeta = last?.metadata_json
     let careers = []
-    if (topForCareers) {
+    if (
+      lastMeta &&
+      typeof lastMeta === 'object' &&
+      Array.isArray(lastMeta.careers) &&
+      lastMeta.careers.length
+    ) {
+      careers = lastMeta.careers.map((c, i) =>
+        typeof c === 'string'
+          ? { id: `ai-${i}`, title: c, salary: '', pathway: '', match_reason: '' }
+          : {
+              id: c?.id ?? `ai-${i}`,
+              title: String(c?.title ?? ''),
+              salary: String(c?.salary ?? ''),
+              pathway: String(c?.pathway ?? ''),
+              match_reason: String(c?.match_reason ?? ''),
+              aptitude_type: c?.aptitude_type,
+            },
+      )
+    } else if (topForCareers) {
       const crRes = await pool.query(
         `SELECT id, title, aptitude_type FROM public.careers
          WHERE aptitude_type = $1 ORDER BY sort_order ASC`,
         [topForCareers],
       )
-      careers = crRes.rows
+      careers = crRes.rows.map((r) => ({
+        ...r,
+        salary: '',
+        pathway: '',
+        match_reason: '',
+      }))
     }
     const currentProfile = last ? metaProfile(last) : null
     res.json({

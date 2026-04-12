@@ -7,6 +7,7 @@ import {
   RadarChart,
   ResponsiveContainer,
 } from 'recharts'
+import { CareerResultCard } from '../../components/CareerResultCard.jsx'
 import { api, getApiError } from '../../utils/api.js'
 import { aptitudeOrder } from '../../lib/quizScoring.js'
 
@@ -55,8 +56,6 @@ const sampleCareersByTopAptitude = {
   practical: ['Carpenter', 'Bike Mechanic', 'Chef'],
 }
 
-const careerEmojis = ['🌟', '🚀', '✨']
-
 function normalizeScores(raw) {
   if (!raw) return {}
   if (typeof raw === 'string') {
@@ -67,11 +66,6 @@ function normalizeScores(raw) {
     }
   }
   return raw
-}
-
-function careerTitle(c) {
-  if (typeof c === 'string') return c
-  return c?.title ?? ''
 }
 
 function headlineFromProfile(profile, topAptitude) {
@@ -122,12 +116,13 @@ export function Results() {
       const meta = fetched.metadata_json
       const profile = meta?.profile ?? fetched.top_aptitude
       const explanation = meta?.explanation ?? ''
+      const careers = Array.isArray(meta?.careers) ? meta.careers : []
       return {
         scores: normalizeScores(fetched.scores_json),
         topAptitude: fetched.top_aptitude,
         profile,
         explanation,
-        careers: [],
+        careers,
       }
     }
     return null
@@ -163,18 +158,23 @@ export function Results() {
     value: Number(scores[k] ?? 0),
   }))
 
-  let topCareers = []
-  if (view?.careers?.length) {
-    topCareers = view.careers.map((c) => careerTitle(c)).filter(Boolean)
-  }
-  if (!topCareers.length && hasSignals) {
-    topCareers =
-      sampleCareersByTopAptitude[topAptitude] ??
-      sampleCareersByTopAptitude.creative
-  }
-  if (!topCareers.length) {
-    topCareers = sampleCareersByTopAptitude.creative
-  }
+  const cardCareers =
+    view?.careers?.length > 0
+      ? view.careers.slice(0, 3)
+      : (
+          hasSignals
+            ? sampleCareersByTopAptitude[topAptitude] ??
+              sampleCareersByTopAptitude.creative
+            : sampleCareersByTopAptitude.creative
+        ).slice(0, 3)
+  const shareCareerLines = cardCareers.map((c) => {
+    if (typeof c === 'string') return `• ${c}`
+    const t = c?.title ?? ''
+    let line = `• ${t}`
+    if (c?.salary) line += ` (${c.salary})`
+    if (c?.pathway) line += ` — ${c.pathway}`
+    return line
+  })
 
   async function handleShareWithParent() {
     const lines = [
@@ -190,7 +190,7 @@ export function Results() {
       ),
       '',
       'Career ideas:',
-      ...topCareers.map((t) => `• ${t}`),
+      ...shareCareerLines,
     ]
     try {
       await navigator.clipboard.writeText(lines.join('\n'))
@@ -317,17 +317,18 @@ export function Results() {
           <p className="mt-1 text-center text-sm text-slate-600">
             A fun starter list — not a final answer.
           </p>
-          <ul className="mt-5 grid gap-3 sm:grid-cols-3">
-            {topCareers.slice(0, 3).map((career, i) => (
-              <li
-                key={career}
-                className="rounded-2xl bg-gradient-to-br from-sky-100 to-fuchsia-100 px-4 py-4 text-center text-sm font-bold text-slate-900 shadow-sm"
-              >
-                <span className="mr-1 text-2xl" aria-hidden="true">
-                  {careerEmojis[i % careerEmojis.length]}
-                </span>
-                {career}
-              </li>
+          <ul className="mt-5 grid gap-4 sm:grid-cols-1 lg:grid-cols-3">
+            {cardCareers.map((career, i) => (
+              <CareerResultCard
+                key={
+                  typeof career === 'object' && career?.title
+                    ? `${career.title}-${i}`
+                    : String(career)
+                }
+                career={career}
+                index={i}
+                variant="child"
+              />
             ))}
           </ul>
         </section>

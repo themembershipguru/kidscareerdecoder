@@ -11,6 +11,11 @@ const app = express()
 const port = Number(process.env.PORT) || 5000
 const aiProvider = process.env.AI_PROVIDER || 'claude'
 
+const trustProxy = Number(process.env.TRUST_PROXY) || 0
+if (trustProxy > 0) {
+  app.set('trust proxy', trustProxy)
+}
+
 app.use(cors())
 app.use(express.json())
 

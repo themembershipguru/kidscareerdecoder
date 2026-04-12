@@ -20,6 +20,7 @@ Full-stack aptitude quiz for kids: React (Vite) front end, Express API, and Post
    - `supabase/migrations/20260405120000_password_reset_tokens.sql` — **forgot password** reset tokens
    - `supabase/migrations/20260406120000_five_additional_quizzes.sql` — five extra published quizzes (team play, inventors, outdoors, kindness, mysteries)
    - `supabase/migrations/20260411120000_adhd_autism_quizzes.sql` — two neuroaffirming quizzes: ADHD strengths (`adhd-spark-strengths`), autistic strengths (`autistic-strengths-shine`)
+   - `supabase/migrations/20260412120000_users_country.sql` — optional `users.country` for career suggestions (defaults to India when unset; client can send `country` on session complete)
 
    **Bootstrap admin user (optional):** run `supabase/ensure_admin_account.sql` in the SQL editor to create or reset **`admin@kidscareerdecoder.com`** with password **`CHANGE_ME_ADMIN_PASSWORD`** (bcrypt via `pgcrypto`). Change the password after login or use **Forgot password** once SMTP is configured.
 
@@ -39,6 +40,7 @@ Full-stack aptitude quiz for kids: React (Vite) front end, Express API, and Post
    - `PUBLIC_APP_URL` — Public origin of the React app **without trailing slash** (e.g. `https://app.kidscareerdecoder.com`). Required for password-reset links in emails. Local dev: `http://localhost:5173`.
    - **Brevo SMTP** (forgot password): `SMTP_HOST` (default `smtp-relay.brevo.com`), `SMTP_PORT` (`587`), `SMTP_USER` (Brevo account email), `SMTP_PASS` (Brevo SMTP key), `MAIL_FROM` (verified sender, e.g. `KidsCareer Decoder <noreply@yourdomain.com>`). If unset, `POST /api/auth/forgot-password` returns **503** with a clear message.
    - **OpenAI** (`OPENAI_API_KEY`): optional for the main aptitude profile if you set the AI provider to OpenAI; also used by **Admin → Edit quiz → “AI label difficulty (1–5)”**, which calls `gpt-4o-mini` once per batch of questions and saves `questions.difficulty_level` for adaptive ordering (static DB; no live generation during play).
+   - **IPinfo** (`IPINFO_TOKEN`): optional; resolves the client IP to a country for the Ikigai-style career prompt (after optional `country` in the complete body). Set **`TRUST_PROXY=1`** when the API sits behind one reverse proxy so the real client IP is used.
 
 4. **Usage** — Register a parent → **Add child** (copy the child’s sign-in email) → sign in as that child → complete the quiz → parent dashboard shows **live** sessions from the database.
 
