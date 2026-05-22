@@ -44,6 +44,8 @@ Full-stack aptitude quiz for kids: React (Vite) front end, Express API, and Post
 
 4. **Usage** — Register a parent → **Add child** (copy the child’s sign-in email) → sign in as that child → complete the quiz → parent dashboard shows **live** sessions from the database.
 
+   **Reviewers (Qollabb / viva):** On `/login`, use **Reviewer quick sign-in** (Parent / Child / Admin) when demo mode is on. Local dev shows it automatically. On **app.kidscareerdecoder.com**, set `VITE_ENABLE_DEMO_LOGIN=true` before `npm run build`, redeploy, then remove after approval. Default accounts: **Priya Sharma** (`priya.sharma.parent@example.com`), **Daksh Kapoor** (`daksh.kapoor.child@example.com`), **admin** (`admin@kidscareerdecoder.com`) — password `CHANGE_ME_DEMO_PASSWORD` / `CHANGE_ME_ADMIN_PASSWORD` for admin. Run `supabase/seed_dummy_users.sql` and `supabase/ensure_admin_account.sql` if those users are missing.
+
 5. **Run locally (full stack with JWT API)**
 
    ```bash

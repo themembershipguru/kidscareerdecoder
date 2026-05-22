@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
+import { DEMO_ACCOUNTS, isDemoLoginEnabled } from '../../config/demoLogins.js'
 import { useAuth } from '../../context'
 import { api, getApiError } from '../../utils/api.js'
 
@@ -22,6 +23,39 @@ export function Login() {
     return <Navigate to={home} replace />
   }
 
+  const completeLogin = async (loginEmail, loginPassword) => {
+    const { data } = await api.post('/auth/login', {
+      email: loginEmail.trim(),
+      password: loginPassword,
+    })
+    login(
+      {
+        id: data.user.id,
+        full_name: data.user.full_name,
+        name: data.user.full_name,
+        role: data.user.role,
+        email: data.user.email,
+      },
+      data.token,
+    )
+    const fromPath = location.state?.from?.pathname
+    if (
+      fromPath &&
+      fromPath !== '/login' &&
+      fromPath !== '/register'
+    ) {
+      navigate(fromPath, { replace: true })
+      return
+    }
+    const home =
+      data.user.role === 'child'
+        ? '/child/quiz'
+        : data.user.role === 'admin'
+          ? '/admin'
+          : '/parent/dashboard'
+    navigate(home, { replace: true })
+  }
+
   const handleSubmit = async (event) => {
     event.preventDefault()
     setFormError('')
@@ -35,42 +69,35 @@ export function Login() {
     }
     setSubmitting(true)
     try {
-      const { data } = await api.post('/auth/login', {
-        email: email.trim(),
-        password,
-      })
-      login(
-        {
-          id: data.user.id,
-          full_name: data.user.full_name,
-          name: data.user.full_name,
-          role: data.user.role,
-          email: data.user.email,
-        },
-        data.token,
-      )
-      const fromPath = location.state?.from?.pathname
-      if (
-        fromPath &&
-        fromPath !== '/login' &&
-        fromPath !== '/register'
-      ) {
-        navigate(fromPath, { replace: true })
-        return
-      }
-      const home =
-        data.user.role === 'child'
-          ? '/child/quiz'
-          : data.user.role === 'admin'
-            ? '/admin'
-            : '/parent/dashboard'
-      navigate(home, { replace: true })
+      await completeLogin(email, password)
     } catch (err) {
       setFormError(getApiError(err))
     } finally {
       setSubmitting(false)
     }
   }
+
+  const fillDemo = (account) => {
+    setEmail(account.email)
+    setPassword(account.password)
+    setFormError('')
+  }
+
+  const signInDemo = async (account) => {
+    setFormError('')
+    setEmail(account.email)
+    setPassword(account.password)
+    setSubmitting(true)
+    try {
+      await completeLogin(account.email, account.password)
+    } catch (err) {
+      setFormError(getApiError(err))
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const showDemo = isDemoLoginEnabled()
 
   return (
     <div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-md flex-col justify-center px-4 py-12 sm:px-6">
@@ -144,6 +171,60 @@ export function Login() {
             {submitting ? 'Signing in…' : 'Continue'}
           </button>
         </form>
+
+        {showDemo && (
+          <div
+            className="mt-8 rounded-xl border border-amber-200/80 bg-amber-50/90 p-4"
+            data-demo-login-panel
+          >
+            <p className="text-xs font-bold uppercase tracking-wide text-amber-900">
+              Reviewer quick sign-in
+            </p>
+            <p className="mt-1 text-xs leading-relaxed text-amber-900/75">
+              For project evaluation only. One-click login — remove after
+              approval (unset <code className="text-[10px]">VITE_ENABLE_DEMO_LOGIN</code>{' '}
+              and rebuild).
+            </p>
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+              {DEMO_ACCOUNTS.map((account) => (
+                <div
+                  key={account.id}
+                  className="flex min-w-0 flex-1 flex-col gap-1.5 rounded-lg border border-amber-200/60 bg-white/80 p-2.5"
+                >
+                  <div>
+                    <span className="text-sm font-bold text-[#1A1A2E]">
+                      {account.label}
+                    </span>
+                    {account.name && (
+                      <span className="ml-1.5 text-xs font-medium text-[#1A1A2E]/70">
+                        {account.name}
+                      </span>
+                    )}
+                    <p className="text-xs text-[#1A1A2E]/55">{account.hint}</p>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => fillDemo(account)}
+                      disabled={submitting}
+                      className="rounded-md border border-[#1A1A2E]/15 px-2 py-1 text-xs font-semibold text-[#1A1A2E]/80 hover:bg-slate-50 disabled:opacity-50"
+                    >
+                      Fill
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => signInDemo(account)}
+                      disabled={submitting}
+                      className="rounded-md bg-amber-600 px-2.5 py-1 text-xs font-bold text-white hover:bg-amber-700 disabled:opacity-50"
+                    >
+                      Sign in
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <p className="mt-8 text-center text-sm text-[#1A1A2E]/65">
           New to KidsCareerDecoder?{' '}
