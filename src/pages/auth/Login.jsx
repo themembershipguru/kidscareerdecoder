@@ -1,6 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
-import { DEMO_ACCOUNTS, isDemoLoginEnabled } from '../../config/demoLogins.js'
 import { useAuth } from '../../context'
 import { api, getApiError } from '../../utils/api.js'
 
@@ -12,6 +11,18 @@ export function Login() {
   const [password, setPassword] = useState('')
   const [formError, setFormError] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [demoAccounts, setDemoAccounts] = useState([])
+
+  useEffect(() => {
+    api
+      .get('/auth/demo-accounts')
+      .then(({ data }) => {
+        if (data?.enabled && Array.isArray(data.accounts) && data.accounts.length) {
+          setDemoAccounts(data.accounts)
+        }
+      })
+      .catch(() => {})
+  }, [])
 
   if (user && token) {
     const home =
@@ -23,11 +34,7 @@ export function Login() {
     return <Navigate to={home} replace />
   }
 
-  const completeLogin = async (loginEmail, loginPassword) => {
-    const { data } = await api.post('/auth/login', {
-      email: loginEmail.trim(),
-      password: loginPassword,
-    })
+  const finishLogin = (data) => {
     login(
       {
         id: data.user.id,
@@ -69,7 +76,11 @@ export function Login() {
     }
     setSubmitting(true)
     try {
-      await completeLogin(email, password)
+      const { data } = await api.post('/auth/login', {
+        email: email.trim(),
+        password,
+      })
+      finishLogin(data)
     } catch (err) {
       setFormError(getApiError(err))
     } finally {
@@ -79,19 +90,16 @@ export function Login() {
 
   const signInDemo = async (account) => {
     setFormError('')
-    setEmail(account.email)
-    setPassword(account.password)
     setSubmitting(true)
     try {
-      await completeLogin(account.email, account.password)
+      const { data } = await api.post('/auth/demo-login', { role: account.id })
+      finishLogin(data)
     } catch (err) {
       setFormError(getApiError(err))
     } finally {
       setSubmitting(false)
     }
   }
-
-  const showDemo = isDemoLoginEnabled()
 
   return (
     <div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-md flex-col justify-center px-4 py-12 sm:px-6">
@@ -166,12 +174,12 @@ export function Login() {
           </button>
         </form>
 
-        {showDemo && (
+        {demoAccounts.length > 0 && (
           <div
             className="mt-8 flex flex-col gap-2 sm:flex-row sm:flex-wrap"
             data-demo-login-panel
           >
-            {DEMO_ACCOUNTS.map((account) => (
+            {demoAccounts.map((account) => (
               <button
                 key={account.id}
                 type="button"

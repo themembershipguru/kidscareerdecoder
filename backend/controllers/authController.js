@@ -2,6 +2,11 @@ import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import { v4 as uuidv4 } from 'uuid'
 import { getPool } from '../db/pool.js'
+import {
+  getDemoCredentials,
+  isDemoLoginEnabled,
+  listDemoAccountOptions,
+} from '../services/demoLogin.js'
 
 function childSignInEmail() {
   return `${uuidv4().replace(/-/g, '')}@child.kidscareerdecoder.internal`
@@ -134,6 +139,29 @@ export async function loginParent(req, res) {
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : 'Server error' })
   }
+}
+
+export async function getDemoAccounts(req, res) {
+  if (!isDemoLoginEnabled()) {
+    res.json({ enabled: false, accounts: [] })
+    return
+  }
+  res.json({ enabled: true, accounts: listDemoAccountOptions() })
+}
+
+export async function demoLogin(req, res) {
+  if (!isDemoLoginEnabled()) {
+    res.status(404).json({ error: 'Not found' })
+    return
+  }
+  const role = String(req.body?.role || '').toLowerCase()
+  const creds = getDemoCredentials(role)
+  if (!creds) {
+    res.status(400).json({ error: 'Demo login is not configured for this role' })
+    return
+  }
+  req.body = { email: creds.email, password: creds.password }
+  return loginParent(req, res)
 }
 
 export async function addChild(req, res) {
