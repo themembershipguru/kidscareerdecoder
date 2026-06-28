@@ -44,7 +44,7 @@ Full-stack aptitude quiz for kids: React (Vite) front end, Express API, and Post
 
 4. **Usage** — Register a parent → **Add child** (copy the child’s sign-in email) → sign in as that child → complete the quiz → parent dashboard shows **live** sessions from the database.
 
-   **Demo login (evaluators):** Set `DEMO_LOGIN_ENABLED=true` plus `DEMO_PARENT_PASSWORD`, `DEMO_CHILD_PASSWORD`, and `DEMO_ADMIN_PASSWORD` in **Hostinger environment variables** (runtime — no rebuild needed). Optional email overrides: `DEMO_PARENT_EMAIL`, `DEMO_CHILD_EMAIL`, `DEMO_ADMIN_EMAIL`. Run `supabase/seed_dummy_users.sql` and `supabase/ensure_admin_account.sql` first. Remove `DEMO_LOGIN_ENABLED` after approval.
+   **Demo login (evaluators):** Parent / Child / Admin quick sign-in on `/login` is **on by default** (matches seeded demo users). Set `DEMO_LOGIN_ENABLED=false` on Hostinger after approval to hide it. Re-run `supabase/seed_dummy_users.sql` and `supabase/ensure_admin_account.sql` if demo users are missing.
 
 5. **Run locally (full stack with JWT API)**
 

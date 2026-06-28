@@ -1,5 +1,5 @@
 -- Dummy users for local/demo (run in Supabase SQL editor)
--- Set passwords in crypt() below before running; do not commit real production passwords.
+-- Demo passwords match backend/services/demoLogin.js defaults.
 -- Requires: pgcrypto (usually available on Supabase)
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
@@ -13,7 +13,7 @@ VALUES
   (
     'seed-parent-priya',
     'priya.sharma.parent@example.com',
-    crypt('CHANGE_ME_DEMO_PASSWORD', gen_salt('bf')),
+    crypt('Password123!', gen_salt('bf')),
     'Priya Sharma',
     'parent',
     NULL,
@@ -23,7 +23,7 @@ VALUES
   (
     'seed-parent-vikram',
     'vikram.kapoor.parent@example.com',
-    crypt('CHANGE_ME_DEMO_PASSWORD', gen_salt('bf')),
+    crypt('Password123!', gen_salt('bf')),
     'Vikram Kapoor',
     'parent',
     NULL,
@@ -44,7 +44,7 @@ VALUES
   (
     'seed-child-aarav',
     'aarav.sharma.child@example.com',
-    crypt('CHANGE_ME_DEMO_PASSWORD', gen_salt('bf')),
+    crypt('Password123!', gen_salt('bf')),
     'Aarav Sharma',
     'child',
     'seed-parent-priya',
@@ -54,7 +54,7 @@ VALUES
   (
     'seed-child-ananya',
     'ananya.sharma.child@example.com',
-    crypt('CHANGE_ME_DEMO_PASSWORD', gen_salt('bf')),
+    crypt('Password123!', gen_salt('bf')),
     'Ananya Sharma',
     'child',
     'seed-parent-priya',
@@ -64,7 +64,7 @@ VALUES
   (
     'seed-child-daksh',
     'daksh.kapoor.child@example.com',
-    crypt('CHANGE_ME_DEMO_PASSWORD', gen_salt('bf')),
+    crypt('Password123!', gen_salt('bf')),
     'Daksh Kapoor',
     'child',
     'seed-parent-vikram',

@@ -1,4 +1,4 @@
-/** Server-side demo logins — passwords only in runtime env (never in client bundle or git). */
+/** Server-side demo logins — optional env overrides; works out of the box for seeded demo users. */
 
 const ROLES = ['parent', 'child', 'admin']
 
@@ -14,8 +14,16 @@ const DEFAULT_EMAIL = {
   admin: 'admin@kidscareerdecoder.com',
 }
 
+/** Matches supabase/seed_dummy_users.sql and ensure_admin_account.sql */
+const DEFAULT_PASSWORD = {
+  parent: 'Password123!',
+  child: 'Password123!',
+  admin: 'Password123#',
+}
+
+/** On by default; set DEMO_LOGIN_ENABLED=false after approval to hide quick sign-in. */
 export function isDemoLoginEnabled() {
-  return process.env.DEMO_LOGIN_ENABLED === 'true'
+  return process.env.DEMO_LOGIN_ENABLED !== 'false'
 }
 
 function envKey(role, field) {
@@ -26,13 +34,15 @@ export function getDemoCredentials(role) {
   if (!ROLES.includes(role)) return null
   const email =
     process.env[envKey(role, 'EMAIL')]?.trim() || DEFAULT_EMAIL[role]
-  const password = process.env[envKey(role, 'PASSWORD')] || ''
+  const password =
+    process.env[envKey(role, 'PASSWORD')] || DEFAULT_PASSWORD[role]
   if (!email || !password) return null
   return { email, password }
 }
 
 /** Public labels only — no passwords. */
 export function listDemoAccountOptions() {
+  if (!isDemoLoginEnabled()) return []
   return ROLES.map((id) => {
     const creds = getDemoCredentials(id)
     if (!creds) return null

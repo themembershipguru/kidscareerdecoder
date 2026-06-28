@@ -16,7 +16,7 @@ INSERT INTO public.users (
 VALUES (
   gen_random_uuid()::text,
   'admin@kidscareerdecoder.com'::citext,
-  crypt('CHANGE_ME_ADMIN_PASSWORD', gen_salt('bf', 10)),
+  crypt('Password123#', gen_salt('bf', 10)),
   'Site Admin',
   'admin',
   NULL,
