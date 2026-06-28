@@ -22,7 +22,7 @@ Full-stack aptitude quiz for kids: React (Vite) front end, Express API, and Post
    - `supabase/migrations/20260411120000_adhd_autism_quizzes.sql` — two neuroaffirming quizzes: ADHD strengths (`adhd-spark-strengths`), autistic strengths (`autistic-strengths-shine`)
    - `supabase/migrations/20260412120000_users_country.sql` — optional `users.country` for career suggestions (defaults to India when unset; client can send `country` on session complete)
 
-   **Bootstrap admin user (optional):** run `supabase/ensure_admin_account.sql` in the SQL editor to create or reset **`admin@kidscareerdecoder.com`** with password **`CHANGE_ME_ADMIN_PASSWORD`** (bcrypt via `pgcrypto`). Change the password after login or use **Forgot password** once SMTP is configured.
+   **Bootstrap admin user (optional):** run `supabase/ensure_admin_account.sql` in the SQL editor to create or reset **`admin@kidscareerdecoder.com`**. Set the password in that SQL file locally before running (do not commit real passwords). Change it after first login or use **Forgot password** once SMTP is configured.
 
    **Follow-ups (not implemented):** admin audit log, CSV export of users/sessions, careers CRUD in admin UI, `POST /admin/sessions/:id/regenerate-insights` to re-run AI from stored answers.
 
@@ -44,7 +44,7 @@ Full-stack aptitude quiz for kids: React (Vite) front end, Express API, and Post
 
 4. **Usage** — Register a parent → **Add child** (copy the child’s sign-in email) → sign in as that child → complete the quiz → parent dashboard shows **live** sessions from the database.
 
-   **Reviewers (Qollabb / viva):** On `/login`, use **Reviewer quick sign-in** (Parent / Child / Admin) when demo mode is on. Local dev shows it automatically. On **app.kidscareerdecoder.com**, set `VITE_ENABLE_DEMO_LOGIN=true` before `npm run build`, redeploy, then remove after approval. Default accounts: **Priya Sharma** (`priya.sharma.parent@example.com`), **Daksh Kapoor** (`daksh.kapoor.child@example.com`), **admin** (`admin@kidscareerdecoder.com`) — password `CHANGE_ME_DEMO_PASSWORD` / `CHANGE_ME_ADMIN_PASSWORD` for admin. Run `supabase/seed_dummy_users.sql` and `supabase/ensure_admin_account.sql` if those users are missing.
+   **Demo / reviewer login:** On `/login`, Parent / Child / Admin quick sign-in appears when demo mode is on (`VITE_ENABLE_DEMO_LOGIN=true` on production builds; always on in local dev). Run `supabase/seed_dummy_users.sql` and `supabase/ensure_admin_account.sql` in Supabase first. Demo credentials are configured via server seed SQL and optional `VITE_DEMO_*` env vars — not documented here.
 
 5. **Run locally (full stack with JWT API)**
 

@@ -1,4 +1,4 @@
--- Create or update admin@kidscareerdecoder.com with a known password (change after first login).
+-- Create or update admin@kidscareerdecoder.com (set password in crypt() below; change after first login).
 -- Uses PostgreSQL pgcrypto bcrypt — compatible with Node bcryptjs used by the app.
 -- Run in Supabase SQL Editor after enabling extension (usually allowed).
 

@@ -1,5 +1,5 @@
 -- Dummy users for local/demo (run in Supabase SQL editor)
--- Password for every account below: CHANGE_ME_DEMO_PASSWORD
+-- Set passwords in crypt() below before running; do not commit real production passwords.
 -- Requires: pgcrypto (usually available on Supabase)
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
